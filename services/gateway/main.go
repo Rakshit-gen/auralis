@@ -95,6 +95,7 @@ func main() {
 	r.Use(httpx.SecurityHeaders)
 	r.Use(httpx.CORS(corsOrigins))
 	reg.Mount(r)
+	r.Get("/api/status", internal.SystemStatusHandler(backends))
 	r.Handle("/api/*", gw)
 	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]any{"service": "auralis-gateway", "version": version})
