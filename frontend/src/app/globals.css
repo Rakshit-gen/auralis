@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Georgia", serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  background: #0a0908;
+  color: #e4dccb;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-image:
+    radial-gradient(1200px 600px at 15% -10%, rgba(217, 150, 63, 0.10), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(111, 179, 201, 0.06), transparent 55%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(217, 150, 63, 0.3);
+}
+
+/* Thin, unobtrusive scrollbars that match the theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #37312a transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #37312a;
+  border-radius: 6px;
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+  .surface {
+    @apply rounded-xl border border-ink-700 bg-ink-900/80 backdrop-blur;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-amber text-ink-950 hover:bg-amber-soft;
+  }
+  .btn-ghost {
+    @apply btn border border-ink-600 text-bone-200 hover:border-amber hover:text-amber-soft;
+  }
+  .btn-quiet {
+    @apply btn text-bone-300 hover:text-bone-100 hover:bg-ink-800;
+  }
+  .field {
+    @apply w-full rounded-lg border border-ink-600 bg-ink-950 px-3 py-2 text-sm text-bone-100 placeholder:text-ink-500 focus:border-amber focus:outline-none;
+  }
+  .tag {
+    @apply inline-flex items-center rounded-full border border-ink-600 px-2.5 py-0.5 text-xs text-bone-300;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.2em] text-amber-soft;
+  }
+}
+
+.grain-overlay::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--tw-bg-grain, none);
+  opacity: 0.04;
+  z-index: 1;
+  mix-blend-mode: overlay;
+}
