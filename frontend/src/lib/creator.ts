@@ -24,7 +24,7 @@ export function useCreatorShow(showId: string) {
       );
       const [seasons, episodes] = await Promise.all([
         api<{ seasons: Season[] }>(`/content/shows/${showId}/seasons`).then((r) => r.seasons).catch(() => []),
-        api<{ episodes: Episode[] }>(`/content/shows/${showId}/episodes`).then((r) => r.episodes).catch(() => []),
+        api<{ episodes: Episode[] }>(`/content/creator/shows/${showId}/episodes`).then((r) => r.episodes).catch(() => []),
       ]);
       return { show, seasons, episodes };
     },
