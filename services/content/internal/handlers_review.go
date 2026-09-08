@@ -170,12 +170,31 @@ func (a *App) transition(w http.ResponseWriter, r *http.Request, entityType, ent
 	defer tx.Rollback(ctx)
 
 	var showID string
+	var cascaded []string
 	if entityType == "show" {
 		if err := a.Store.SetShowStatus(ctx, tx, entityID, from, to); err != nil {
 			httpx.Error(w, r, errcodes.Conflicting(err.Error()))
 			return
 		}
 		showID = entityID
+
+		// One review action on the show carries the whole series with it: every
+		// episode whose audio is ready follows the show through the same
+		// transition. Episodes still processing or failed stay behind.
+		if sources := episodeCascadeSources(to); len(sources) > 0 {
+			moved, err := a.Store.CascadeEpisodeStatus(ctx, tx, entityID, sources, to)
+			if err != nil {
+				httpx.Error(w, r, errcodes.Unexpected("could not update episodes"))
+				return
+			}
+			cascaded = moved
+		}
+		if to == StatusPublished {
+			if err := a.Store.RecalcShowAggregates(ctx, tx, showID); err != nil {
+				httpx.Error(w, r, errcodes.Unexpected("could not update show totals"))
+				return
+			}
+		}
 	} else {
 		if err := a.Store.SetEpisodeStatus(ctx, tx, entityID, from, to); err != nil {
 			httpx.Error(w, r, errcodes.Conflicting(err.Error()))
@@ -208,6 +227,19 @@ func (a *App) transition(w http.ResponseWriter, r *http.Request, entityType, ent
 		}
 	}
 
+	// When a show is published its cascaded episodes go live in the same
+	// transaction, so each one needs its own content.episode_published event for
+	// the recommendation and catalog projections.
+	if entityType == "show" && to == StatusPublished {
+		for _, epID := range cascaded {
+			payload := a.publicationPayload(ctx, "episode", epID, showID)
+			if err := a.enqueue(ctx, tx, "content.episode_published", 1, showID, payload); err != nil {
+				httpx.Error(w, r, errcodes.Unexpected("could not record publication event"))
+				return
+			}
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not complete transition"))
 		return
@@ -216,6 +248,24 @@ func (a *App) transition(w http.ResponseWriter, r *http.Request, entityType, ent
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"entity_type": entityType, "entity_id": entityID, "status": to, "changed_at": time.Now().UTC(),
 	})
+}
+
+// episodeCascadeSources lists the episode statuses that should follow a show
+// into the target status. It mirrors reviewTransition, one step behind: an
+// episode is only carried along if it is sitting in the state the show just
+// left.
+func episodeCascadeSources(to string) []string {
+	switch to {
+	case StatusReadyForReview:
+		return []string{StatusDraft, StatusRejected}
+	case StatusApproved, StatusRejected:
+		return []string{StatusReadyForReview}
+	case StatusPublished:
+		return []string{StatusApproved}
+	case StatusArchived:
+		return []string{StatusPublished, StatusApproved}
+	}
+	return nil
 }
 
 func publishedEventType(entityType, to string) string {

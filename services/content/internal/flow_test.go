@@ -222,3 +222,94 @@ func TestAuthoringReviewPublishFlow(t *testing.T) {
 		t.Fatal("public episode leaked the HLS master key")
 	}
 }
+
+// TestShowReviewCascadesToReadyEpisodes covers the AI-generation path: the
+// creator only ever acts on the show, and every episode with finished audio
+// rides along through submit, approve and publish. Episodes still processing
+// are left in draft.
+func TestShowReviewCascadesToReadyEpisodes(t *testing.T) {
+	srv, app, pool := setup(t)
+	ctx := context.Background()
+	creator := "33333333-3333-3333-3333-333333333333"
+	admin := "44444444-4444-4444-4444-444444444444"
+
+	_, data := do(t, "POST", srv.URL+"/shows", map[string]any{
+		"title": "Tidewater", "synopsis": "Salt marsh field recordings turn into a story.",
+		"language_code": "en", "genre_ids": []string{}, "tags": []string{"mystery"},
+	}, hdr(creator, "CREATOR"))
+	showID := idOf(t, data)
+
+	_, data = do(t, "POST", srv.URL+"/shows/"+showID+"/seasons",
+		map[string]any{"number": 1, "title": "Season 1"}, hdr(creator, "CREATOR"))
+	seasonID := idOf(t, data)
+
+	_, data = do(t, "POST", srv.URL+"/seasons/"+seasonID+"/episodes",
+		map[string]any{"number": 1, "title": "Low Tide"}, hdr(creator, "CREATOR"))
+	readyEp := idOf(t, data)
+	_, data = do(t, "POST", srv.URL+"/seasons/"+seasonID+"/episodes",
+		map[string]any{"number": 2, "title": "High Water"}, hdr(creator, "CREATOR"))
+	pendingEp := idOf(t, data)
+
+	// Only the first episode finishes rendering.
+	if err := app.Store.AttachMedia(ctx, readyEp, MediaMetadata{
+		HLSMasterKey: "hls/" + readyEp + "/master.m3u8",
+		Variants: []AudioVariant{
+			{BitrateKbps: 64, Key: "a/64.m3u8", Codec: "aac"},
+			{BitrateKbps: 128, Key: "a/128.m3u8", Codec: "aac"},
+			{BitrateKbps: 256, Key: "a/256.m3u8", Codec: "aac"},
+		},
+		Codec: "aac", SampleRateHz: 44100, Channels: 2, DurationSec: 1100, FileSizeBytes: 4 << 20,
+	}); err != nil {
+		t.Fatalf("attach media: %v", err)
+	}
+
+	// Creator submits only the show.
+	if resp, d := do(t, "POST", srv.URL+"/shows/"+showID+"/submit", nil, hdr(creator, "CREATOR")); resp.StatusCode != http.StatusOK {
+		t.Fatalf("submit show: %d %s", resp.StatusCode, d)
+	}
+	// Admin approves then publishes only the show.
+	for _, action := range []string{"approve", "publish"} {
+		if resp, d := do(t, "POST", srv.URL+"/admin/review/show/"+showID,
+			map[string]any{"action": action}, hdr(admin, "ADMIN")); resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s show: %d %s", action, resp.StatusCode, d)
+		}
+	}
+
+	ready, err := app.Store.EpisodeByID(ctx, readyEp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ready.Status != StatusPublished {
+		t.Fatalf("ready episode should be published, got %q", ready.Status)
+	}
+	pending, err := app.Store.EpisodeByID(ctx, pendingEp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending.Status != StatusDraft {
+		t.Fatalf("unprocessed episode should stay draft, got %q", pending.Status)
+	}
+
+	sh, err := app.Store.ShowByID(ctx, showID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sh.EpisodeCount != 1 {
+		t.Fatalf("expected episode_count 1, got %d", sh.EpisodeCount)
+	}
+
+	var showEvents, epEvents int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM outbox_events WHERE envelope->>'event_type' = 'content.show_published'`,
+	).Scan(&showEvents); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM outbox_events WHERE envelope->>'event_type' = 'content.episode_published'`,
+	).Scan(&epEvents); err != nil {
+		t.Fatal(err)
+	}
+	if showEvents != 1 || epEvents != 1 {
+		t.Fatalf("expected 1 show + 1 episode publication event, got %d + %d", showEvents, epEvents)
+	}
+}

@@ -539,6 +539,35 @@ func (s *Store) RefreshEpisodeCount(ctx context.Context, showID string) error {
 	return err
 }
 
+// CascadeEpisodeStatus moves every episode of a show that sits in one of
+// fromStatuses to the target status, but only if its audio has finished
+// processing. It runs inside the caller's tx and returns the ids that actually
+// moved, so the caller can emit a per-episode event for each. Episodes still
+// rendering or failed are left where they are.
+func (s *Store) CascadeEpisodeStatus(ctx context.Context, tx pgx.Tx, showID string, fromStatuses []string, to string) ([]string, error) {
+	rows, err := tx.Query(ctx,
+		`UPDATE episodes SET status = $3::content_status,
+			published_at = CASE WHEN $3 = 'published' AND published_at IS NULL THEN now() ELSE published_at END,
+			updated_at = now()
+		 WHERE show_id = $1
+		   AND status = ANY($2::content_status[])
+		   AND (processing = 'ready' OR duration_sec > 0)
+		 RETURNING id`, showID, fromStatuses, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // RecalcShowAggregates refreshes episode_count and total_duration_sec from
 // published episodes.
 func (s *Store) RecalcShowAggregates(ctx context.Context, tx pgx.Tx, showID string) error {
