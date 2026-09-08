@@ -54,8 +54,16 @@ entitlements from user.
   `SERVICE_SHARED_TOKEN`) must match across all services.
 - In production every hop is HTTPS (Vercel and Render terminate TLS; the
   Postgres, Redis, and Kafka connections use TLS).
-- Object storage is never public. Media is served only through presigned URLs
-  with a 2-hour TTL minted at authorize time.
+- The media bucket holds only packaged HLS audio. It is served either through
+  presigned URLs (2-hour TTL, minted at the playback authorize call) or, where
+  `S3_PUBLIC_BASE_URL` is set, through a public read-only media domain with a
+  CORS policy scoped to the web client's origin. With the public domain, an
+  episode's audio is reachable by anyone who holds or can derive its object
+  key, so premium gating on that deployment is the authorize check plus the
+  client-side preview limit, not a cryptographic barrier on the bytes. A
+  deployment that needs hard enforcement should keep `S3_PUBLIC_BASE_URL` unset
+  and serve native HLS, or put a signing proxy in front of the bucket. See
+  [AUDIO_PROCESSING.md](AUDIO_PROCESSING.md#delivery).
 
 ## Content safety
 

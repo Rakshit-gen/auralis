@@ -50,29 +50,66 @@ Create a Redis database, copy the `rediss://` URL. Only the gateway needs it
    - `S3_REGION=auto`
    - `S3_BUCKET=auralis-media`
    - `S3_ACCESS_KEY` / `S3_SECRET_KEY` (the R2 token's key pair)
+4. Give the bucket a public read domain and set it on playback as
+   `S3_PUBLIC_BASE_URL` (no trailing slash). The quickest option is the R2
+   managed `https://pub-<hash>.r2.dev` domain; a custom domain works too. This
+   is required for playback in a desktop browser: hls.js loads the variant
+   playlists and segments relative to the master URL, and the browser drops the
+   query string when it does, so presigned child URLs come back unsigned and
+   403. With a public prefix the URLs need no signature. See
+   [AUDIO_PROCESSING.md](AUDIO_PROCESSING.md#delivery).
+5. Add a CORS policy on the bucket (R2 dashboard, Settings, CORS policy) that
+   allows `GET` and `HEAD` from the web client origin, for example:
 
-Keep the bucket private. Media is reached only through presigned URLs. Create
-the bucket before the services start; the R2 token does not need bucket-create
-permission but the services will not create it for you on R2.
+   ```json
+   [{ "AllowedOrigins": ["https://auralis-web-topaz.vercel.app"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedHeaders": ["*"],
+      "MaxAgeSeconds": 3600 }]
+   ```
+
+Create the bucket before the services start; the R2 token does not need
+bucket-create permission and the services will not create it for you on R2. The
+bucket holds only packaged HLS audio, nothing private. Leave `S3_PUBLIC_BASE_URL`
+unset for a local or single-origin demo and playback falls back to presigned
+URLs (fine for native HLS on iOS Safari, not for hls.js on desktop).
 
 ## 4. Kafka (Redpanda Cloud)
 
 Render's free tier has no private services, so the broker is hosted. Create a
-**Redpanda Serverless** cluster (free tier), then a user and an ACL:
+**Redpanda Serverless** cluster (free tier), then a user and its ACLs:
 
 ```
 rpk cloud login
 rpk cloud namespace create auralis
 # create the cluster in the console, then:
 rpk security user create auralis-app -p '<generated>' --mechanism SCRAM-SHA-256
-rpk security acl create --allow-principal User:auralis-app \
-  --operation all --topic '*' --group '*'
 ```
 
+Serverless does not grant anything by default, and each resource type is a
+separate ACL. Grant all four before creating topics or starting a service:
+
+```
+rpk security acl create --allow-principal User:auralis-app \
+  --operation all --topic '*'
+rpk security acl create --allow-principal User:auralis-app \
+  --operation all --group '*'
+rpk security acl create --allow-principal User:auralis-app \
+  --operation all --transactional-id '*'
+rpk security acl create --allow-principal User:auralis-app \
+  --operation all --cluster
+```
+
+The transactional-id ACL is what the outbox producers need (they use Kafka
+transactions); the cluster ACL covers `IdempotentWrite` and topic listing.
+Without the topic ACL a `CreateTopics` call returns success but creates
+nothing, so a missing ACL here looks like the topic script working while every
+producer then fails, order matters.
+
 Pre-create the topics (Serverless disables auto-creation), all five plus their
-`.dlq` counterparts from [KAFKA.md](KAFKA.md).
-`scripts/deploy/redpanda-topics.py` does this from the `KAFKA_*` values in
-`.env.deploy` (partitions 3, broker-default replication), and is idempotent:
+`.dlq` counterparts from [KAFKA.md](KAFKA.md), only after the ACLs are in
+place. `scripts/deploy/redpanda-topics.py` does this from the `KAFKA_*` values
+in `.env.deploy` (partitions 3, broker-default replication), and is idempotent:
 
 ```
 .venv/bin/python scripts/deploy/redpanda-topics.py
@@ -86,6 +123,9 @@ for t in auralis.user.events auralis.content.events auralis.playback.events \
   rpk topic create "$t" "$t.dlq" -p 3
 done
 ```
+
+Confirm they exist (`rpk topic list`) before deploying, an empty list means the
+ACLs were not applied first.
 
 Every service then gets:
 
@@ -191,13 +231,22 @@ whoever clicks the link.
 
 ## 6. Web client (Vercel)
 
-Import the repo, root directory `frontend`. Env:
+Import the repo as a project (the live one is `auralis-web` at
+`https://auralis-web-topaz.vercel.app`), root directory `frontend`. Env:
 
 ```
 NEXT_PUBLIC_API_BASE=https://auralis-gateway.onrender.com/api
 ```
 
-Set `CORS_ALLOWED_ORIGINS` on the gateway to the Vercel URL.
+The frontend `Dockerfile` builds a standalone bundle and sets
+`NEXT_OUTPUT=standalone` itself. Do not set that variable on Vercel, it turns
+off Vercel's own output handling and the deploy 404s. It is only for the
+container image.
+
+Once the URL is known, set it in two places:
+
+- `CORS_ALLOWED_ORIGINS` on the gateway (comma-separated if more than one).
+- The R2 bucket CORS policy (section 3, step 5), so audio segments load.
 
 ## 7. Seed the catalog
 
@@ -210,20 +259,50 @@ API_BASE=https://auralis-gateway.onrender.com/api \
 .venv/bin/python scripts/seed.py
 ```
 
-## 8. Verify
+## 8. Package audio for the seed catalog
+
+`scripts/seed.py` attaches packaged-audio metadata but never produces audio, so
+a freshly seeded episode 404s on playback. `scripts/deploy/media-backfill.py`
+closes that gap: for every published episode it composes an original narration
+from the show and episode metadata, synthesizes it with espeak-ng, packages it
+to the same three-bitrate HLS layout the ai-media worker produces, uploads it
+under the key the episode already points at, and re-attaches the real metadata.
+
+```
+.venv/bin/python scripts/deploy/media-backfill.py --dry-run   # plan only
+.venv/bin/python scripts/deploy/media-backfill.py             # up to --target-gb
+```
+
+It needs `ffmpeg`, `ffprobe`, and `espeak-ng` on `PATH`, reads `S3_*` and
+gateway settings from `.env.deploy`, is idempotent (an episode that already has
+a real master playlist is skipped unless `--force`), and stays inside a byte
+budget so the R2 free tier is safe. It runs for a while; `--limit` and
+`--only-show` scope a first pass. Episodes generated through the in-app AI
+studio already have real audio and are untouched.
+
+## 9. Verify
 
 ```
 API_BASE=https://auralis-gateway.onrender.com/api .venv/bin/python scripts/e2e.py
 ```
 
-Then load the Vercel URL, register, open a show, play an episode.
+Then load the Vercel URL, register, open a show, play an episode. If playback
+starts on iOS Safari but not on a desktop browser, `S3_PUBLIC_BASE_URL` or the
+bucket CORS policy is missing (section 3).
 
 ## CI/CD
 
-`.github/workflows` builds and tests Go, Python, and the frontend on every push
-with path filters, and builds the Docker images. Wire Render and Vercel to
-deploy on push to the default branch, or trigger deploys from the workflow with
-provider deploy hooks.
+`.github/workflows/ci.yml` runs four jobs behind a `dorny/paths-filter` gate:
+`go` (gofmt, vet, tests against a Postgres service and a single-node
+`apache/kafka` KRaft container), `python` (ruff check, ruff format check,
+pytest), `frontend` (eslint, then `next build`, then `tsc`, then the Vitest
+suite, in that order because the build regenerates the route types the
+typecheck reads), and `docker` (builds all nine images, no push). Each filter
+also lists `.github/workflows/ci.yml` itself so a change to the workflow
+exercises every job.
+
+Wire Render and Vercel to deploy on push to the default branch, or trigger
+deploys from the workflow with provider deploy hooks.
 
 ## Rollback
 

@@ -62,16 +62,28 @@ pulls these keys into its cache.
 
 ## Delivery
 
-At authorize time, playback presigns `hls_master_key` and every variant key
-with a 2-hour TTL and returns the URLs. The web client loads the master URL
-with hls.js, which picks a rendition based on measured bandwidth. Segments are
-fetched directly from object storage. No audio byte passes through an Auralis
-service.
+At authorize time, playback returns URLs for `hls_master_key` and every variant
+key. The web client loads the master URL with hls.js, which picks a rendition
+based on measured bandwidth. Segments are fetched directly from object storage.
+No audio byte passes through an Auralis service.
 
-Because the variant playlists reference segments by relative name and the
-whole tree is in one prefix, a presigned master URL plus presigned variant
-URLs are enough; the client rewrites segment requests against the same signed
-prefix.
+How those URLs are formed depends on `S3_PUBLIC_BASE_URL`:
+
+- **Set** (production): playback returns plain `S3_PUBLIC_BASE_URL + key` URLs.
+  The media bucket is exposed through a public read-only domain (an R2 `r2.dev`
+  domain or a custom domain) with a CORS policy that allows GET and HEAD from
+  the web client's origin. This is what desktop browsers need: hls.js resolves
+  the variant playlists and segments relative to the master, and a browser
+  drops the query string when it does that, so anything signed would come back
+  unsigned and 403. A public prefix sidesteps the whole problem, and the bucket
+  still holds nothing private.
+- **Unset** (local, single-origin demos): playback presigns the master and
+  every variant key with a 2-hour TTL. This is fine for native HLS (iOS Safari)
+  and for tools that keep the query string, but not for hls.js in a desktop
+  browser.
+
+Set `S3_PUBLIC_BASE_URL` on the playback service to the public media domain,
+with no trailing slash.
 
 ## Requirements
 
