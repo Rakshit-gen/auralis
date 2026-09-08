@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      python: ${{ steps.filter.outputs.python }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - 'libs/go-platform/**'
+              - 'services/gateway/**'
+              - 'services/auth/**'
+              - 'services/user/**'
+              - 'services/content/**'
+              - 'services/playback/**'
+              - 'services/analytics/**'
+            python:
+              - 'libs/py-common/**'
+              - 'services/ai_media/**'
+              - 'services/recommendation/**'
+              - 'scripts/**'
+            frontend:
+              - 'frontend/**'
+            docker:
+              - '**/Dockerfile'
+              - 'docker-compose.yml'
+
+  go:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: auralis, POSTGRES_PASSWORD: auralis, POSTGRES_DB: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U auralis" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25", cache-dependency-path: "**/go.sum" }
+      - name: Create test databases
+        run: |
+          for db in auth_test user_test content_test playback_test analytics_test; do
+            PGPASSWORD=auralis createdb -h localhost -U auralis "$db"
+          done
+      - name: Start Kafka
+        run: |
+          docker run -d --name kafka -p 9092:9092 \
+            -e KAFKA_CFG_NODE_ID=1 -e KAFKA_CFG_PROCESS_ROLES=broker,controller \
+            -e KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+            -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
+            -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+            -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+            -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+            -e KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+            bitnami/kafka:3.9
+          sleep 20
+      - name: Format check
+        run: |
+          for m in libs/go-platform services/gateway services/auth services/user services/content services/playback services/analytics; do
+            test -z "$(gofmt -l $m)" || { echo "gofmt needed in $m"; gofmt -l $m; exit 1; }
+          done
+      - name: Vet
+        run: |
+          for m in libs/go-platform services/gateway services/auth services/user services/content services/playback services/analytics; do
+            (cd $m && go vet ./...)
+          done
+      - name: Test
+        env:
+          KAFKA_BROKERS: localhost:9092
+          AUTH_TEST_DATABASE_URL: postgres://auralis:auralis@localhost:5432/auth_test?sslmode=disable
+          CONTENT_TEST_DATABASE_URL: postgres://auralis:auralis@localhost:5432/content_test?sslmode=disable
+          USER_TEST_DATABASE_URL: postgres://auralis:auralis@localhost:5432/user_test?sslmode=disable
+          PLAYBACK_TEST_DATABASE_URL: postgres://auralis:auralis@localhost:5432/playback_test?sslmode=disable
+          ANALYTICS_TEST_DATABASE_URL: postgres://auralis:auralis@localhost:5432/analytics_test?sslmode=disable
+        run: |
+          for m in libs/go-platform services/gateway services/auth services/user services/content services/playback services/analytics; do
+            (cd $m && go test ./... -count=1)
+          done
+
+  python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: auralis, POSTGRES_PASSWORD: auralis, POSTGRES_DB: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U auralis" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - name: System deps
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e libs/py-common -e "services/ai_media[dev]" -e "services/recommendation[dev]"
+      - name: Create test databases
+        run: |
+          for db in ai_media_dev recommendation_test; do PGPASSWORD=auralis createdb -h localhost -U auralis "$db"; done
+      - name: Lint
+        run: |
+          ruff check libs/py-common services/ai_media services/recommendation scripts
+          ruff format --check libs/py-common services/ai_media services/recommendation
+      - name: Test
+        env:
+          RECOMMENDATION_TEST_DATABASE_URL: postgresql://auralis:auralis@localhost:5432/recommendation_test
+        run: |
+          (cd services/ai_media && pytest -q)
+          (cd services/recommendation && pytest -q)
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image:
+          - { name: gateway, file: services/gateway/Dockerfile }
+          - { name: auth, file: services/auth/Dockerfile }
+          - { name: user, file: services/user/Dockerfile }
+          - { name: content, file: services/content/Dockerfile }
+          - { name: playback, file: services/playback/Dockerfile }
+          - { name: analytics, file: services/analytics/Dockerfile }
+          - { name: ai-media, file: services/ai_media/Dockerfile }
+          - { name: recommendation, file: services/recommendation/Dockerfile }
+          - { name: frontend, file: frontend/Dockerfile }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.image.file }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
