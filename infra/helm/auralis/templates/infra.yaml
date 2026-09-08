@@ -1,0 +1,232 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+data:
+  init.sql: |
+    CREATE DATABASE auth;
+    CREATE DATABASE users;
+    CREATE DATABASE content;
+    CREATE DATABASE playback;
+    CREATE DATABASE analytics;
+    CREATE DATABASE ai_media;
+    CREATE DATABASE recommendation;
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  clusterIP: None
+  selector: { app.kubernetes.io/name: postgres }
+  ports: [{ port: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: postgres }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: postgres, app.kubernetes.io/part-of: auralis }
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports: [{ containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_USER, value: auralis }
+            - { name: POSTGRES_PASSWORD, value: auralis }
+            - { name: POSTGRES_DB, value: postgres }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "auralis"] }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: init
+          configMap: { name: postgres-init }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: {{ .Values.postgres.storage }} } }
+{{- end }}
+{{- if .Values.redis.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector: { app.kubernetes.io/name: redis }
+  ports: [{ port: 6379 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: redis }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: redis, app.kubernetes.io/part-of: auralis }
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          args: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+          ports: [{ containerPort: 6379 }]
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+{{- end }}
+{{- if .Values.redpanda.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+spec:
+  clusterIP: None
+  selector: { app.kubernetes.io/name: redpanda }
+  ports:
+    - { name: kafka, port: 9092 }
+    - { name: admin, port: 9644 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redpanda
+spec:
+  serviceName: redpanda
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: redpanda }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: redpanda, app.kubernetes.io/part-of: auralis }
+    spec:
+      containers:
+        - name: redpanda
+          image: {{ .Values.redpanda.image }}
+          args:
+            - redpanda
+            - start
+            - --overprovisioned
+            - --smp=1
+            - --memory=1G
+            - --reserve-memory=0M
+            - --node-id=0
+            - --check=false
+            - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+            - --advertise-kafka-addr=PLAINTEXT://redpanda.{{ .Release.Namespace }}.svc.cluster.local:9092
+          ports:
+            - { containerPort: 9092 }
+            - { containerPort: 9644 }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/redpanda/data }
+          readinessProbe:
+            httpGet: { path: /v1/status/ready, port: 9644 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 200m, memory: 1Gi }
+            limits: { cpu: "1", memory: 1500Mi }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: {{ .Values.redpanda.storage }} } }
+{{- end }}
+{{- if .Values.minio.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector: { app.kubernetes.io/name: minio }
+  ports:
+    - { name: api, port: 9000 }
+    - { name: console, port: 9001 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+spec:
+  serviceName: minio
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: minio }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: minio, app.kubernetes.io/part-of: auralis }
+    spec:
+      containers:
+        - name: minio
+          image: {{ .Values.minio.image }}
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom: { secretKeyRef: { name: auralis-secrets, key: S3_ACCESS_KEY } }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: auralis-secrets, key: S3_SECRET_KEY } }
+          ports:
+            - { containerPort: 9000 }
+            - { containerPort: 9001 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+          readinessProbe:
+            httpGet: { path: /minio/health/ready, port: 9000 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: {{ .Values.minio.storage }} } }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-bucket-{{ .Release.Revision }}
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until mc alias set local http://minio:9000 "$S3_ACCESS_KEY" "$S3_SECRET_KEY"; do sleep 3; done
+              mc mb --ignore-existing local/{{ .Values.config.s3.bucket }}
+          env:
+            - name: S3_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: auralis-secrets, key: S3_ACCESS_KEY } }
+            - name: S3_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: auralis-secrets, key: S3_SECRET_KEY } }
+{{- end }}

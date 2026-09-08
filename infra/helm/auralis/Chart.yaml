@@ -1,0 +1,13 @@
+apiVersion: v2
+name: auralis
+description: The Auralis serialized-audio platform - 8 services, a worker, and the web client
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - audio
+  - streaming
+  - microservices
+home: https://github.com/Rakshit-gen/auralis
+sources:
+  - https://github.com/Rakshit-gen/auralis

@@ -1,0 +1,194 @@
+# Default values for the Auralis chart. Every secret here is a development
+# placeholder and MUST be overridden for any non-local install, ideally with
+# `secrets.create: false` and externally managed Secrets.
+
+image:
+  registry: ghcr.io/rakshit-gen
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Non-secret shared configuration -> the auralis-config ConfigMap.
+config:
+  logLevel: info
+  jwtIssuer: auralis-auth
+  jwtAudience: auralis
+  kafkaBrokers: redpanda:9092
+  otlpEndpoint: http://otel-collector:4318
+  corsAllowedOrigins: http://localhost:3000
+  redisUrl: redis://redis:6379/0
+  aiDefaultProvider: auto
+  s3:
+    endpoint: minio:9000
+    bucket: auralis-media
+    region: us-east-1
+    useSsl: "false"
+
+# Secret values. With create: false the chart references Secrets named
+# "auralis-secrets" and "auralis-db" that you create out of band.
+secrets:
+  create: true
+  jwtSecret: "dev-jwt-secret-change-me-0123456789"
+  identitySecret: "dev-identity-secret-change-me-0123456789"
+  serviceSharedToken: "dev-service-token-change-me-0123456789"
+  adminEmail: "admin@auralis.local"
+  adminPassword: "auralis-admin-pw"
+  s3AccessKey: "auralis"
+  s3SecretKey: "auralis-secret"
+  groqApiKey: ""
+
+# Per-service database URLs -> the auralis-db Secret (when secrets.create).
+database:
+  auth: "postgres://auralis:auralis@postgres:5432/auth?sslmode=disable"
+  user: "postgres://auralis:auralis@postgres:5432/users?sslmode=disable"
+  content: "postgres://auralis:auralis@postgres:5432/content?sslmode=disable"
+  playback: "postgres://auralis:auralis@postgres:5432/playback?sslmode=disable"
+  analytics: "postgres://auralis:auralis@postgres:5432/analytics?sslmode=disable"
+  aiMedia: "postgresql://auralis:auralis@postgres:5432/ai_media"
+  recommendation: "postgresql://auralis:auralis@postgres:5432/recommendation"
+
+# The eight services plus the ai-media worker. `image` defaults to
+# <registry>/auralis-<name>:<tag>. `dbKey` names the entry in `database`
+# whose value is injected as <DBENV>.
+services:
+  gateway:
+    port: 8080
+    replicas: 2
+    addrEnv: GATEWAY_HTTP_ADDR
+    addrValue: ":8080"
+    dbKey: ""
+    dbEnv: ""
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+  auth:
+    port: 8081
+    replicas: 2
+    addrEnv: AUTH_HTTP_ADDR
+    addrValue: ":8081"
+    dbKey: auth
+    dbEnv: AUTH_DATABASE_URL
+    bootstrapAdmin: true
+    resources:
+      requests: { cpu: 100m, memory: 96Mi }
+      limits: { cpu: "1", memory: 384Mi }
+  user:
+    port: 8083
+    replicas: 1
+    addrEnv: USER_HTTP_ADDR
+    addrValue: ":8083"
+    dbKey: user
+    dbEnv: USER_DATABASE_URL
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+  content:
+    port: 8082
+    replicas: 1
+    addrEnv: CONTENT_HTTP_ADDR
+    addrValue: ":8082"
+    dbKey: content
+    dbEnv: CONTENT_DATABASE_URL
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits: { cpu: "1", memory: 512Mi }
+  playback:
+    port: 8084
+    replicas: 2
+    addrEnv: PLAYBACK_HTTP_ADDR
+    addrValue: ":8084"
+    dbKey: playback
+    dbEnv: PLAYBACK_DATABASE_URL
+    resources:
+      requests: { cpu: 100m, memory: 96Mi }
+      limits: { cpu: "1", memory: 384Mi }
+  analytics:
+    port: 8087
+    replicas: 1
+    addrEnv: ANALYTICS_HTTP_ADDR
+    addrValue: ":8087"
+    dbKey: analytics
+    dbEnv: ANALYTICS_DATABASE_URL
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits: { cpu: 500m, memory: 256Mi }
+  ai-media:
+    port: 8085
+    replicas: 1
+    image: auralis-ai-media
+    addrEnv: AI_MEDIA_HTTP_ADDR
+    addrValue: "0.0.0.0:8085"
+    dbKey: aiMedia
+    dbEnv: AI_MEDIA_DATABASE_URL
+    pythonProbeDelay: true
+    extraEnv:
+      - { name: AI_MEDIA_RUN_WORKER, value: "false" }
+    resources:
+      requests: { cpu: 100m, memory: 192Mi }
+      limits: { cpu: "1", memory: 512Mi }
+  recommendation:
+    port: 8086
+    replicas: 1
+    addrEnv: RECOMMENDATION_HTTP_ADDR
+    addrValue: "0.0.0.0:8086"
+    dbKey: recommendation
+    dbEnv: RECOMMENDATION_DATABASE_URL
+    pythonProbeDelay: true
+    resources:
+      requests: { cpu: 100m, memory: 192Mi }
+      limits: { cpu: "1", memory: 512Mi }
+
+worker:
+  enabled: true
+  replicas: 1
+  image: auralis-ai-media
+  dbEnv: AI_MEDIA_DATABASE_URL
+  dbKey: aiMedia
+  resources:
+    requests: { cpu: 250m, memory: 384Mi }
+    limits: { cpu: "2", memory: 1Gi }
+
+frontend:
+  enabled: true
+  replicas: 2
+  image: auralis-frontend
+  apiBase: "http://localhost:8080/api"
+  resources:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+
+ingress:
+  enabled: true
+  className: nginx
+  host: auralis.example.com
+  tls:
+    enabled: false
+    secretName: auralis-tls
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+
+migrateJob:
+  # A pre-install/pre-upgrade hook Job that runs every service's migrations
+  # before the rollout. Services also self-migrate on boot.
+  enabled: true
+
+# In-cluster infrastructure. Turn each off and point config/database/secrets at
+# a managed service for production.
+postgres:
+  enabled: true
+  storage: 5Gi
+  image: postgres:16-alpine
+redis:
+  enabled: true
+  image: redis:7-alpine
+redpanda:
+  enabled: true
+  storage: 5Gi
+  image: redpandadata/redpanda:v24.2.7
+minio:
+  enabled: true
+  storage: 10Gi
+  image: minio/minio:latest
+observability:
+  enabled: true
+  otelImage: otel/opentelemetry-collector-contrib:0.116.1
+  prometheusImage: prom/prometheus:v3.1.0

@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auralis-config
+  labels: {{- include "auralis.labels" (dict "ctx" . "name" "config") | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  JWT_ISSUER: {{ .Values.config.jwtIssuer | quote }}
+  JWT_AUDIENCE: {{ .Values.config.jwtAudience | quote }}
+  KAFKA_BROKERS: {{ .Values.config.kafkaBrokers | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otlpEndpoint | quote }}
+  CORS_ALLOWED_ORIGINS: {{ .Values.config.corsAllowedOrigins | quote }}
+  REDIS_URL: {{ .Values.config.redisUrl | quote }}
+  AI_DEFAULT_PROVIDER: {{ .Values.config.aiDefaultProvider | quote }}
+  S3_ENDPOINT: {{ .Values.config.s3.endpoint | quote }}
+  S3_BUCKET: {{ .Values.config.s3.bucket | quote }}
+  S3_REGION: {{ .Values.config.s3.region | quote }}
+  S3_USE_SSL: {{ .Values.config.s3.useSsl | quote }}
+  AUTH_SERVICE_URL: "http://auth:8081"
+  USER_SERVICE_URL: "http://user:8083"
+  CONTENT_SERVICE_URL: "http://content:8082"
+  PLAYBACK_SERVICE_URL: "http://playback:8084"
+  RECOMMENDATION_SERVICE_URL: "http://recommendation:8086"
+  AI_MEDIA_SERVICE_URL: "http://ai-media:8085"
+  ANALYTICS_SERVICE_URL: "http://analytics:8087"
+{{- if .Values.secrets.create }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auralis-secrets
+  labels: {{- include "auralis.labels" (dict "ctx" . "name" "secrets") | nindent 4 }}
+type: Opaque
+stringData:
+  JWT_SECRET: {{ .Values.secrets.jwtSecret | quote }}
+  IDENTITY_SECRET: {{ .Values.secrets.identitySecret | quote }}
+  SERVICE_SHARED_TOKEN: {{ .Values.secrets.serviceSharedToken | quote }}
+  ADMIN_EMAIL: {{ .Values.secrets.adminEmail | quote }}
+  ADMIN_PASSWORD: {{ .Values.secrets.adminPassword | quote }}
+  S3_ACCESS_KEY: {{ .Values.secrets.s3AccessKey | quote }}
+  S3_SECRET_KEY: {{ .Values.secrets.s3SecretKey | quote }}
+  GROQ_API_KEY: {{ .Values.secrets.groqApiKey | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auralis-db
+  labels: {{- include "auralis.labels" (dict "ctx" . "name" "db") | nindent 4 }}
+type: Opaque
+stringData:
+  AUTH_DATABASE_URL: {{ .Values.database.auth | quote }}
+  USER_DATABASE_URL: {{ .Values.database.user | quote }}
+  CONTENT_DATABASE_URL: {{ .Values.database.content | quote }}
+  PLAYBACK_DATABASE_URL: {{ .Values.database.playback | quote }}
+  ANALYTICS_DATABASE_URL: {{ .Values.database.analytics | quote }}
+  AI_MEDIA_DATABASE_URL: {{ .Values.database.aiMedia | quote }}
+  RECOMMENDATION_DATABASE_URL: {{ .Values.database.recommendation | quote }}
+{{- end }}

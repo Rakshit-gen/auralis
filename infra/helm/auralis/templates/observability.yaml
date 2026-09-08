@@ -1,0 +1,137 @@
+{{- if .Values.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+          http: { endpoint: 0.0.0.0:4318 }
+    processors:
+      batch: { timeout: 5s }
+      memory_limiter: { check_interval: 5s, limit_mib: 256 }
+    exporters:
+      debug: { verbosity: normal }
+      prometheus: { endpoint: 0.0.0.0:8889 }
+    service:
+      telemetry:
+        logs: { level: warn }
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+spec:
+  selector: { app.kubernetes.io/name: otel-collector }
+  ports:
+    - { name: otlp-grpc, port: 4317 }
+    - { name: otlp-http, port: 4318 }
+    - { name: prom, port: 8889 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: otel-collector }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: otel-collector, app.kubernetes.io/part-of: auralis }
+    spec:
+      containers:
+        - name: otel-collector
+          image: {{ .Values.observability.otelImage }}
+          args: ["--config=/etc/otel/config.yaml"]
+          ports:
+            - { containerPort: 4317 }
+            - { containerPort: 4318 }
+            - { containerPort: 8889 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/otel }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 384Mi }
+      volumes:
+        - name: config
+          configMap: { name: otel-collector-config }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      scrape_timeout: 10s
+    scrape_configs:
+      - job_name: auralis-services
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - gateway:8080
+              - auth:8081
+              - content:8082
+              - user:8083
+              - playback:8084
+              - ai-media:8085
+              - recommendation:8086
+              - analytics:8087
+            labels: { platform: auralis }
+      - job_name: otel-collector
+        static_configs:
+          - targets: ["otel-collector:8889"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+spec:
+  selector: { app.kubernetes.io/name: prometheus }
+  ports: [{ port: 9090 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: prometheus }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: prometheus, app.kubernetes.io/part-of: auralis }
+    spec:
+      containers:
+        - name: prometheus
+          image: {{ .Values.observability.prometheusImage }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.retention.time=15d
+          ports: [{ containerPort: 9090 }]
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus }
+            - { name: data, mountPath: /prometheus }
+          resources:
+            requests: { cpu: 50m, memory: 192Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: config
+          configMap: { name: prometheus-config }
+        - name: data
+          emptyDir: {}
+{{- end }}

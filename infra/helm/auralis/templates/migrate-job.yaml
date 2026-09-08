@@ -1,0 +1,35 @@
+{{- if .Values.migrateJob.enabled }}
+# A one-shot migration Job. Not a Helm hook: the chart's Secrets and the
+# database must exist first, and every service also applies its own migrations
+# on boot, so this is a convenience, not a gate. The revision in the name means
+# `helm upgrade` creates a fresh Job each time.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-migrate-{{ .Release.Revision }}
+  labels: {{- include "auralis.labels" (dict "ctx" . "name" "migrate") | nindent 4 }}
+spec:
+  backoffLimit: 8
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: migrate
+        app.kubernetes.io/part-of: auralis
+    spec:
+      restartPolicy: Never
+      containers:
+        {{- range $name, $svc := .Values.services }}
+        {{- if $svc.dbEnv }}
+        - name: {{ $name }}
+          image: {{ include "auralis.image" (dict "ctx" $ "name" $name "img" $svc.image) }}
+          args: ["migrate"]
+          env:
+            - name: {{ $svc.dbEnv }}
+              valueFrom:
+                secretKeyRef:
+                  name: auralis-db
+                  key: {{ $svc.dbEnv }}
+        {{- end }}
+        {{- end }}
+{{- end }}

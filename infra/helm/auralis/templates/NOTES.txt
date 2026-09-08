@@ -1,0 +1,32 @@
+Auralis is installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Services:
+{{- range $name, $svc := .Values.services }}
+  - {{ $name }} (:{{ $svc.port }}, {{ $svc.replicas }} replica(s))
+{{- end }}
+{{- if .Values.worker.enabled }}
+  - ai-media-worker ({{ .Values.worker.replicas }} replica(s))
+{{- end }}
+{{- if .Values.frontend.enabled }}
+  - frontend (:3000, {{ .Values.frontend.replicas }} replica(s))
+{{- end }}
+
+{{ if .Values.ingress.enabled -}}
+Reach it at: http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+  API:  /api
+  Web:  /
+{{- else -}}
+No ingress. Port-forward the gateway:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/gateway {{ .Values.services.gateway.port }}:{{ .Values.services.gateway.port }}
+{{- end }}
+
+{{ if .Values.secrets.create -}}
+WARNING: this release used the built-in placeholder secrets. Before exposing
+this anywhere, set secrets.create=false and provide "auralis-secrets" and
+"auralis-db" yourself, or override every value under .Values.secrets and
+.Values.database.
+{{- end }}
+
+Seed the catalog (with the gateway reachable):
+  SERVICE_SHARED_TOKEN=... AUTH_BOOTSTRAP_ADMIN_EMAIL=... AUTH_BOOTSTRAP_ADMIN_PASSWORD=... \
+    python scripts/seed.py
