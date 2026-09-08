@@ -107,12 +107,20 @@ function GenerateInner() {
   const { data: genres } = useGenres();
   const { data: languages } = useLanguages();
   const [brief, setBrief] = useState("");
-  const [episodeCount, setEpisodeCount] = useState(8);
+  const [episodeCount, setEpisodeCount] = useState("8");
   const [language, setLanguage] = useState("en");
   const [isPremium, setIsPremium] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const EPISODE_MIN = 3;
+  const EPISODE_MAX = 24;
+  const episodeCountNum = (() => {
+    const n = parseInt(episodeCount, 10);
+    if (Number.isNaN(n)) return 8;
+    return Math.min(EPISODE_MAX, Math.max(EPISODE_MIN, n));
+  })();
 
   const canSubmit = brief.trim().length >= 10 && !busy;
 
@@ -126,7 +134,7 @@ function GenerateInner() {
         method: "POST",
         body: {
           brief: brief.trim(),
-          episode_count: episodeCount,
+          episode_count: episodeCountNum,
           language_code: language,
           is_premium: isPremium,
         },
@@ -190,10 +198,12 @@ function GenerateInner() {
             <span className="mb-1 block text-bone-300">Episodes</span>
             <input
               type="number"
-              min={3}
-              max={24}
+              inputMode="numeric"
+              min={EPISODE_MIN}
+              max={EPISODE_MAX}
               value={episodeCount}
-              onChange={(e) => setEpisodeCount(Number(e.target.value))}
+              onChange={(e) => setEpisodeCount(e.target.value.replace(/[^0-9]/g, ""))}
+              onBlur={() => setEpisodeCount(String(episodeCountNum))}
               className="field"
             />
           </label>
