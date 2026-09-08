@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/stores/auth";
-import { WaveIcon } from "@/components/icons";
+import { LogoMark } from "@/components/logo";
 
 function LoginForm() {
   const router = useRouter();
@@ -27,8 +27,8 @@ function LoginForm() {
   return (
     <div className="container-page flex min-h-[70vh] items-center justify-center py-12">
       <div className="surface w-full max-w-md p-8 animate-fade-up">
-        <div className="mb-6 flex items-center gap-2">
-          <WaveIcon className="h-6 w-6 text-amber" />
+        <div className="mb-6 flex items-center gap-2.5">
+          <LogoMark className="h-7 w-7" title="Auralis" />
           <span className="font-display text-xl text-bone-100">Welcome back</span>
         </div>
         <form onSubmit={submit} className="space-y-4">
@@ -61,7 +61,7 @@ function LoginForm() {
         </form>
         <p className="mt-4 text-sm text-bone-300">
           New here?{" "}
-          <Link href="/register" className="text-amber-soft">
+          <Link href="/register" className="text-signal-soft">
             Create an account
           </Link>
         </p>

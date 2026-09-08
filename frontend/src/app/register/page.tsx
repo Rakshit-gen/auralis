@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/stores/auth";
-import { WaveIcon } from "@/components/icons";
+import { LogoMark } from "@/components/logo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -29,8 +29,8 @@ export default function RegisterPage() {
   return (
     <div className="container-page flex min-h-[70vh] items-center justify-center py-12">
       <div className="surface w-full max-w-md p-8 animate-fade-up">
-        <div className="mb-6 flex items-center gap-2">
-          <WaveIcon className="h-6 w-6 text-amber" />
+        <div className="mb-6 flex items-center gap-2.5">
+          <LogoMark className="h-7 w-7" title="Auralis" />
           <span className="font-display text-xl text-bone-100">Join Auralis</span>
         </div>
         <form onSubmit={submit} className="space-y-4">
@@ -76,7 +76,7 @@ export default function RegisterPage() {
         </form>
         <p className="mt-4 text-sm text-bone-300">
           Already have an account?{" "}
-          <Link href="/login" className="text-amber-soft">
+          <Link href="/login" className="text-signal-soft">
             Sign in
           </Link>
         </p>
