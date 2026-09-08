@@ -1,6 +1,7 @@
 go 1.25.0
 
 use (
+	./services/playback
 	./services/user
 	./libs/go-platform
 	./services/auth
