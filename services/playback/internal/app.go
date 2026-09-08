@@ -28,6 +28,17 @@ var eventTypes = map[string]bool{
 	"SKIP": true, "BUFFER_START": true, "BUFFER_END": true,
 }
 
+// domainEventType maps a client event type to its canonical Kafka event type.
+// COMPLETE becomes "playback.completed" to match the type emitted by the
+// progress endpoint and expected by every downstream consumer; the rest are the
+// lowercased client type (PLAY -> playback.play, BUFFER_START -> playback.buffer_start).
+func domainEventType(clientType string) string {
+	if clientType == "COMPLETE" {
+		return "playback.completed"
+	}
+	return "playback." + strings.ToLower(clientType)
+}
+
 // MediaSigner produces time-limited download URLs for object keys.
 // objectstore.Client satisfies it; tests provide a fake.
 type MediaSigner interface {
@@ -204,10 +215,13 @@ func (a *App) postProgress(w http.ResponseWriter, r *http.Request) {
 	occurredAt := parseTime(req.OccurredAt)
 	ctx := r.Context()
 
-	showID := req.ShowID
-	if showID == "" {
-		if m, err := a.Store.EpisodeMeta(ctx, req.EpisodeID); err == nil {
+	showID, durationSec := req.ShowID, req.DurationSec
+	if m, err := a.Store.EpisodeMeta(ctx, req.EpisodeID); err == nil {
+		if showID == "" {
 			showID = m.ShowID
+		}
+		if durationSec <= 0 {
+			durationSec = m.DurationSec
 		}
 	}
 
@@ -235,7 +249,7 @@ func (a *App) postProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prog, err := a.Store.SaveProgress(ctx, tx, id.UserID, req.EpisodeID, showID,
-		req.PositionSec, req.DurationSec, req.Completed, occurredAt)
+		req.PositionSec, durationSec, req.Completed, occurredAt)
 	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not save progress"))
 		return
@@ -312,6 +326,16 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 			skipped++
 			continue
 		}
+		// Enrich from the authoritative episode cache: the client may omit
+		// show_id and never knows the real duration, which analytics needs to
+		// credit listening time on completion.
+		showID, durationSec := ev.ShowID, 0
+		if meta, merr := a.Store.EpisodeMeta(ctx, ev.EpisodeID); merr == nil {
+			if showID == "" {
+				showID = meta.ShowID
+			}
+			durationSec = meta.DurationSec
+		}
 		tx, err := a.Store.Pool().Begin(ctx)
 		if err != nil {
 			httpx.Error(w, r, errcodes.Unexpected("database unavailable"))
@@ -327,16 +351,17 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		occurredAt := parseTime(ev.OccurredAt)
 		if ev.Type == "PROGRESS" || ev.Type == "COMPLETE" {
-			if _, err := a.Store.SaveProgress(ctx, tx, id.UserID, ev.EpisodeID, ev.ShowID,
-				ev.PositionSec, 0, ev.Type == "COMPLETE", occurredAt); err != nil {
+			if _, err := a.Store.SaveProgress(ctx, tx, id.UserID, ev.EpisodeID, showID,
+				ev.PositionSec, durationSec, ev.Type == "COMPLETE", occurredAt); err != nil {
 				_ = tx.Rollback(ctx)
 				httpx.Error(w, r, errcodes.Unexpected("could not save progress"))
 				return
 			}
 		}
 		payload := map[string]any{
-			"user_id": id.UserID, "episode_id": ev.EpisodeID, "show_id": ev.ShowID,
-			"event_type": ev.Type, "position_sec": ev.PositionSec, "session_id": ev.SessionID,
+			"user_id": id.UserID, "episode_id": ev.EpisodeID, "show_id": showID,
+			"event_type": ev.Type, "position_sec": ev.PositionSec, "duration_sec": durationSec,
+			"completed": ev.Type == "COMPLETE", "session_id": ev.SessionID,
 			"occurred_at": occurredAt,
 		}
 		if ev.FromSec != nil {
@@ -345,7 +370,7 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 		if ev.ToSec != nil {
 			payload["to_sec"] = *ev.ToSec
 		}
-		if err := a.enqueue(ctx, tx, "playback."+strings.ToLower(ev.Type), id.UserID, payload); err != nil {
+		if err := a.enqueue(ctx, tx, domainEventType(ev.Type), id.UserID, payload); err != nil {
 			_ = tx.Rollback(ctx)
 			httpx.Error(w, r, errcodes.Unexpected("could not record events"))
 			return

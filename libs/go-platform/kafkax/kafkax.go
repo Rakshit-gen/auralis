@@ -59,14 +59,8 @@ func NewProducer(brokerCSV, service string) *Producer {
 	}
 }
 
-// Publish sends env to topic, partitioned by key (usually the aggregate id).
-func (p *Producer) Publish(ctx context.Context, topic, key string, env envelope.Envelope) error {
-	if err := env.Validate(); err != nil {
-		return fmt.Errorf("kafkax: refusing to publish invalid envelope: %w", err)
-	}
-	done := telemetry.Timer(func(d time.Duration) { telemetry.ObserveKafkaProduce(p.service, topic, d) })
-	defer done()
-	err := p.w.WriteMessages(ctx, kafka.Message{
+func message(topic, key string, env envelope.Envelope) kafka.Message {
+	return kafka.Message{
 		Topic: topic,
 		Key:   []byte(key),
 		Value: env.Bytes(),
@@ -76,8 +70,50 @@ func (p *Producer) Publish(ctx context.Context, topic, key string, env envelope.
 			{Key: "correlation_id", Value: []byte(env.CorrelationID)},
 		},
 		Time: env.OccurredAt,
-	})
-	if err != nil {
+	}
+}
+
+// Publish sends env to topic, partitioned by key (usually the aggregate id).
+func (p *Producer) Publish(ctx context.Context, topic, key string, env envelope.Envelope) error {
+	if err := env.Validate(); err != nil {
+		return fmt.Errorf("kafkax: refusing to publish invalid envelope: %w", err)
+	}
+	done := telemetry.Timer(func(d time.Duration) { telemetry.ObserveKafkaProduce(p.service, topic, d) })
+	defer done()
+	if err := p.w.WriteMessages(ctx, message(topic, key, env)); err != nil {
+		telemetry.Count(p.service, "kafka_publish", "failure")
+		return err
+	}
+	telemetry.Count(p.service, "kafka_publish", "success")
+	return nil
+}
+
+// OutboxRow is one pending event to publish, as read from an outbox table.
+type OutboxRow struct {
+	Topic string
+	Key   string
+	Env   envelope.Envelope
+}
+
+// PublishBatch sends many events in a single write. Messages may target
+// different topics; kafka-go groups them by topic/partition into batched
+// produce requests, which is dramatically faster than one call per event when
+// draining an outbox backlog. On error nothing is considered published: the
+// caller retries and consumers dedupe on event_id.
+func (p *Producer) PublishBatch(ctx context.Context, rows []OutboxRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	msgs := make([]kafka.Message, 0, len(rows))
+	for _, row := range rows {
+		if err := row.Env.Validate(); err != nil {
+			return fmt.Errorf("kafkax: refusing to publish invalid envelope: %w", err)
+		}
+		msgs = append(msgs, message(row.Topic, row.Key, row.Env))
+	}
+	done := telemetry.Timer(func(d time.Duration) { telemetry.ObserveKafkaProduce(p.service, rows[0].Topic, d) })
+	defer done()
+	if err := p.w.WriteMessages(ctx, msgs...); err != nil {
 		telemetry.Count(p.service, "kafka_publish", "failure")
 		return err
 	}

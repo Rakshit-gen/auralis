@@ -51,7 +51,7 @@ type Relay struct {
 }
 
 func NewRelay(pool *pgxpool.Pool, producer *kafkax.Producer, service string) *Relay {
-	return &Relay{pool: pool, producer: producer, interval: time.Second, batch: 100, service: service}
+	return &Relay{pool: pool, producer: producer, interval: time.Second, batch: 500, service: service}
 }
 
 // Run publishes pending rows until ctx is cancelled.
@@ -132,16 +132,18 @@ func (r *Relay) drainBatch(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	ids := make([]int64, 0, len(items))
-	for _, it := range items {
-		if err := r.producer.Publish(ctx, it.topic, it.key, it.env); err != nil {
-			// Stop at the first failure; committing what we have preserves order.
-			if len(ids) == 0 {
-				return 0, err
-			}
-			break
-		}
-		ids = append(ids, it.id)
+	rowsToPublish := make([]kafkax.OutboxRow, len(items))
+	ids := make([]int64, len(items))
+	for i, it := range items {
+		rowsToPublish[i] = kafkax.OutboxRow{Topic: it.topic, Key: it.key, Env: it.env}
+		ids[i] = it.id
+	}
+	// One batched produce request for the whole batch. On error nothing is
+	// marked published; the rows are retried next tick and consumers dedupe on
+	// event_id. Per-entity order holds because the partition key is the
+	// aggregate id and kafka-go writes each partition's messages in order.
+	if err := r.producer.PublishBatch(ctx, rowsToPublish); err != nil {
+		return 0, err
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE outbox_events SET published_at = now() WHERE id = ANY($1)`, ids); err != nil {
