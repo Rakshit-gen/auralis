@@ -17,8 +17,15 @@ class Recommender:
         # 0 = pure relevance, 1 = maximum spread across genres.
         self.diversity = diversity
 
-    async def feed(self, repo: Repo, user_id: str, size: int | None = None) -> dict:
+    async def feed(
+        self, repo: Repo, user_id: str, size: int | None = None, holdout: set[str] | None = None
+    ) -> dict:
         size = size or self.feed_size
+        # holdout is used only by the offline evaluation: the listed shows are
+        # scored as if the user had never interacted with them, so a leave-last-out
+        # split can measure whether the rest of their history ranks the held-out
+        # show highly.
+        holdout = holdout or set()
         shows = await repo.published_shows(500)
         if not shows:
             return {"items": [], "strategy": "empty_catalog"}
@@ -26,7 +33,7 @@ class Recommender:
         signals = await repo.signals_map([s.show_id for s in shows])
         genre_scores = await repo.user_genre_scores(user_id)
         lang_scores = await repo.user_language_scores(user_id)
-        user_shows = await repo.user_show_scores(user_id)
+        user_shows = {sid: v for sid, v in (await repo.user_show_scores(user_id)).items() if sid not in holdout}
         prefs = await repo.user_prefs(user_id)
 
         started_shows = list(user_shows.keys())

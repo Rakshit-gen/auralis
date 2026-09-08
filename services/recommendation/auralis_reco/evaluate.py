@@ -91,15 +91,17 @@ async def run(k: int, min_interactions: int) -> dict:
     evaluated = 0
 
     for user_id, shows in rows:
+        # array_agg returns driver UUID objects; the recommender deals in strings.
+        user_id = str(user_id)
+        shows = [str(s) for s in shows]
         held_out = {shows[-1]}
-        # Temporarily ignore the held-out interaction by asking the recommender
-        # while excluding it from "already started" via a fresh session where the
-        # held-out row's completed flag is not set. We approximate by removing it
-        # from the returned list if present as a started item is already filtered.
+        # Leave-last-out: score the recommender with the held-out show masked from
+        # the user's history, then check where it lands in the returned feed. The
+        # feed already excludes the user's other started shows.
         async with sm() as session:
             repo = Repo(session)
-            feed = await recommender.feed(repo, user_id, size=max(k * 3, 30))
-        rec_ids = [item["show_id"] for item in feed["items"] if item["show_id"] not in set(shows[:-1])]
+            feed = await recommender.feed(repo, user_id, size=max(k * 3, 30), holdout=held_out)
+        rec_ids = [item["show_id"] for item in feed["items"]]
 
         p_sum += precision_at_k(rec_ids, held_out, k)
         r_sum += recall_at_k(rec_ids, held_out, k)
