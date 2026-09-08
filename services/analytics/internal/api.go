@@ -17,15 +17,24 @@ type API struct{ pool *pgxpool.Pool }
 
 func NewAPI(pool *pgxpool.Pool) *API { return &API{pool: pool} }
 
-// Routes mounts the analytics endpoints. All require the ADMIN role.
+// Routes mounts the analytics endpoints.
+//
+// Per-show and per-episode performance are visible to any authenticated caller
+// (a creator checks their own show, the same numbers back the public catalog).
+// Platform-wide metrics and the leaderboard are ADMIN only.
 func (a *API) Routes(r chi.Router) {
 	r.Route("/analytics", func(r chi.Router) {
-		r.Use(authn.RequireRoles(authn.RoleAdmin))
-		r.Get("/overview", a.overview)
-		r.Get("/shows/top", a.topShows)
-		r.Get("/shows/{id}", a.showPerformance)
-		r.Get("/episodes/{id}", a.episodePerformance)
-		r.Get("/retention", a.retention)
+		r.Group(func(r chi.Router) {
+			r.Use(authn.RequireRoles())
+			r.Get("/shows/{id}", a.showPerformance)
+			r.Get("/episodes/{id}", a.episodePerformance)
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(authn.RequireRoles(authn.RoleAdmin))
+			r.Get("/overview", a.overview)
+			r.Get("/shows/top", a.topShows)
+			r.Get("/retention", a.retention)
+		})
 	})
 }
 
