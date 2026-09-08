@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/stores/auth";
-import { SearchIcon, SparkIcon, WaveIcon } from "@/components/icons";
+import { SearchIcon, SparkIcon } from "@/components/icons";
+import { Logo } from "@/components/logo";
 
 const NAV = [
   { href: "/home", label: "Home", auth: true },
@@ -29,9 +30,8 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-20 border-b border-ink-800 bg-ink-950/85 backdrop-blur">
       <div className="container-page flex h-16 items-center gap-4">
-        <Link href={user ? "/home" : "/"} className="flex items-center gap-2">
-          <WaveIcon className="h-6 w-6 text-amber" />
-          <span className="font-display text-xl tracking-tight text-bone-100">Auralis</span>
+        <Link href={user ? "/home" : "/"} className="group flex items-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal">
+          <Logo markClassName="h-7 w-7 transition-transform duration-500 group-hover:-rotate-6" />
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
@@ -58,10 +58,20 @@ export function Nav() {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search stories"
               aria-label="Search"
-              className="field w-48 pl-8 lg:w-64"
+              className="field w-44 pl-8 lg:w-56"
             />
           </div>
         </form>
+
+        <Link
+          href={user ? "/generate" : "/register"}
+          className="btn-tide ml-auto shrink-0 text-sm sm:ml-2"
+          title="Generate a series with the AI pipeline"
+        >
+          <SparkIcon className="h-4 w-4" />
+          <span className="hidden lg:inline">Generate a series</span>
+          <span className="lg:hidden">Generate</span>
+        </Link>
 
         {user ? (
           <div className="relative">

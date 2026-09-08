@@ -10,7 +10,7 @@ export function Spinner({ label = "Loading" }: { label?: string }) {
         {[0, 1, 2, 3].map((i) => (
           <span
             key={i}
-            className="w-1 origin-bottom rounded bg-amber animate-pulse-bar"
+            className="w-1 origin-bottom rounded bg-signal animate-pulse-bar"
             style={{ height: 16, animationDelay: `${i * 120}ms` }}
           />
         ))}
@@ -69,7 +69,7 @@ export function SectionHeader({
         <h2 className="font-display text-2xl text-bone-100">{title}</h2>
       </div>
       {href && (
-        <Link href={href} className="btn-quiet shrink-0 text-sm text-amber-soft">
+        <Link href={href} className="btn-quiet shrink-0 text-sm text-signal-soft">
           {linkLabel}
         </Link>
       )}
@@ -106,8 +106,11 @@ export function Chip({
 
 export function ProgressBar({ value }: { value: number }) {
   return (
-    <div className="h-1 w-full overflow-hidden rounded-full bg-ink-700">
-      <div className="h-full rounded-full bg-amber" style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }} />
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-700">
+      <div
+        className="h-full rounded-full bg-gradient-to-r from-signal-deep via-signal to-signal-soft transition-[width] duration-500"
+        style={{ width: `${Math.min(100, Math.max(0, value * 100))}%` }}
+      />
     </div>
   );
 }

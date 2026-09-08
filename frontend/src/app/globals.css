@@ -10,35 +10,40 @@
 
 html,
 body {
-  background: #0a0908;
+  background: #04070c;
   color: #e4dccb;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 body {
+  /* Light coming up through deep water: a cool cyan glow low and left, a
+     fainter one high and right, over a near-black blue. The animated wave
+     canvas sits on top of this, the content on top of that. */
+  background-color: #04070c;
   background-image:
-    radial-gradient(1200px 600px at 15% -10%, rgba(217, 150, 63, 0.10), transparent 60%),
-    radial-gradient(900px 500px at 110% 10%, rgba(111, 179, 201, 0.06), transparent 55%);
+    radial-gradient(1100px 620px at 8% 108%, rgba(84, 208, 204, 0.12), transparent 60%),
+    radial-gradient(900px 520px at 108% -6%, rgba(226, 162, 77, 0.08), transparent 55%),
+    linear-gradient(180deg, #04070c 0%, #060d16 45%, #04070c 100%);
   background-attachment: fixed;
   min-height: 100vh;
 }
 
 ::selection {
-  background: rgba(217, 150, 63, 0.3);
+  background: rgba(84, 208, 204, 0.28);
 }
 
 /* Thin, unobtrusive scrollbars that match the theme. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #37312a transparent;
+  scrollbar-color: #294657 transparent;
 }
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #37312a;
+  background: #294657;
   border-radius: 6px;
 }
 
@@ -47,28 +52,49 @@ body {
     @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
   }
   .surface {
-    @apply rounded-xl border border-ink-700 bg-ink-900/80 backdrop-blur;
+    @apply rounded-xl border border-ink-700 bg-ink-900/70 backdrop-blur;
+  }
+  /* A surface that lifts and catches light on hover. Use for anything the
+     reader is meant to click into. */
+  .surface-interactive {
+    @apply surface transition duration-300 hover:-translate-y-0.5 hover:border-signal/40 hover:bg-ink-800/70 hover:shadow-tide;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-primary {
-    @apply btn bg-amber text-ink-950 hover:bg-amber-soft;
+    @apply btn bg-amber text-ink-950 hover:bg-amber-soft active:translate-y-px;
   }
   .btn-ghost {
-    @apply btn border border-ink-600 text-bone-200 hover:border-amber hover:text-amber-soft;
+    @apply btn border border-ink-600 text-bone-200 hover:border-signal hover:text-signal-soft;
   }
   .btn-quiet {
     @apply btn text-bone-300 hover:text-bone-100 hover:bg-ink-800;
   }
+  /* The bioluminescent call to action: the AI pipeline entry point. */
+  .btn-tide {
+    @apply btn relative overflow-hidden border border-signal/50 bg-signal/10 text-signal-soft hover:bg-signal/20 hover:shadow-tide active:translate-y-px;
+  }
   .field {
-    @apply w-full rounded-lg border border-ink-600 bg-ink-950 px-3 py-2 text-sm text-bone-100 placeholder:text-ink-500 focus:border-amber focus:outline-none;
+    @apply w-full rounded-lg border border-ink-600 bg-ink-950 px-3 py-2 text-sm text-bone-100 placeholder:text-ink-500 focus:border-signal focus:outline-none;
   }
   .tag {
     @apply inline-flex items-center rounded-full border border-ink-600 px-2.5 py-0.5 text-xs text-bone-300;
   }
   .eyebrow {
-    @apply text-xs font-semibold uppercase tracking-[0.2em] text-amber-soft;
+    @apply text-xs font-semibold uppercase tracking-[0.2em] text-signal;
+  }
+}
+
+@layer utilities {
+  /* Shimmering text used sparingly on the AI headline. */
+  .text-tide {
+    background-image: linear-gradient(100deg, #9bece8 0%, #54d0cc 30%, #f0c37e 55%, #54d0cc 80%, #9bece8 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 6s linear infinite;
   }
 }
 
@@ -81,4 +107,19 @@ body {
   opacity: 0.04;
   z-index: 1;
   mix-blend-mode: overlay;
+}
+
+/* Respect people who ask their system for less motion: the wave canvas checks
+   this in JS, and every decorative animation is dropped here as a backstop. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .text-tide {
+    animation: none;
+  }
 }
