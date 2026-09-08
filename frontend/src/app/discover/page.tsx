@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useGenres, useLanguages, useShows } from "@/lib/hooks";
 import { ShowGrid } from "@/components/show-grid";
 import { Chip } from "@/components/ui";
@@ -13,10 +14,21 @@ const SORTS = [
 ];
 
 export default function DiscoverPage() {
-  const [genre, setGenre] = useState<string>("");
-  const [language, setLanguage] = useState<string>("");
+  return (
+    <Suspense fallback={null}>
+      <DiscoverInner />
+    </Suspense>
+  );
+}
+
+function DiscoverInner() {
+  const params = useSearchParams();
+  const [genre, setGenre] = useState<string>(params.get("genre") ?? "");
+  const [language, setLanguage] = useState<string>(params.get("language") ?? "");
   const [sort, setSort] = useState("recent");
-  const [aiOnly, setAiOnly] = useState<boolean | undefined>(undefined);
+  const [aiOnly, setAiOnly] = useState<boolean | undefined>(
+    params.get("ai") === "true" ? true : params.get("ai") === "false" ? false : undefined,
+  );
 
   const { data: genres } = useGenres();
   const { data: languages } = useLanguages();

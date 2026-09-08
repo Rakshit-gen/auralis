@@ -8,6 +8,7 @@ import { useTrending } from "@/lib/hooks";
 import { ShowCardCompact } from "@/components/show-card";
 import { LogoMark } from "@/components/logo";
 import { SparkIcon, WaveIcon } from "@/components/icons";
+import { CreatorPipeline, GenreStrip, HowItWorks } from "@/components/landing-sections";
 
 const BRIEF_SAMPLES = [
   "A lighthouse keeper starts receiving weather reports for a coast that no longer exists.",
@@ -25,8 +26,8 @@ export default function Landing() {
   }, [ready, user, router]);
 
   return (
-    <div className="container-page">
-      <section className="grid gap-10 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:py-24">
+    <div className="container-page space-y-20 py-12 sm:space-y-24 lg:py-16">
+      <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="animate-fade-up">
           <p className="eyebrow mb-4">Serialized audio, one episode at a time</p>
           <h1 className="font-display text-4xl leading-[1.05] text-bone-100 sm:text-5xl lg:text-6xl">
@@ -75,6 +76,9 @@ export default function Landing() {
         </aside>
       </section>
 
+      <HowItWorks />
+      <GenreStrip />
+
       {/* The AI studio: the loudest thing on the page after the headline. */}
       <section className="relative overflow-hidden rounded-2xl border border-signal/30 bg-ink-900/70 p-8 backdrop-blur animate-tide-in sm:p-12">
         <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-signal/10 blur-3xl" />
@@ -114,7 +118,9 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-12">
+      <CreatorPipeline />
+
+      <section>
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {[
             ["Discover", "Filter by genre, language, and mood.", "/discover"],
