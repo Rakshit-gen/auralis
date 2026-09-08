@@ -11,8 +11,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from auralis_ai_media.repo import Repo
 
-CREATOR_ROLES = ("CREATOR", "ADMIN")
-
 
 class SeriesRequest(BaseModel):
     brief: str = Field(min_length=10, max_length=2000)
@@ -39,7 +37,7 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
     @router.post("/generate/series", status_code=202)
     async def generate_series(
         body: SeriesRequest,
-        identity: Identity = Depends(require_roles(*CREATOR_ROLES)),
+        identity: Identity = Depends(require_identity),
         rs=Depends(repo_dep),
     ):
         repo, session = rs
@@ -55,7 +53,7 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
     @router.post("/generate/episode", status_code=202)
     async def generate_episode(
         body: EpisodeRequest,
-        identity: Identity = Depends(require_roles(*CREATOR_ROLES)),
+        identity: Identity = Depends(require_identity),
         rs=Depends(repo_dep),
     ):
         repo, session = rs

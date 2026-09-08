@@ -25,13 +25,15 @@ type Backend struct {
 	proxy *httputil.ReverseProxy
 }
 
-// Route maps a public path prefix to a backend and its auth requirement.
+// Route maps a public path prefix to a backend service. The forwarded path is
+// TargetPrefix followed by whatever came after Prefix, so
+// (Prefix "/api/catalog", TargetPrefix "") turns /api/catalog/shows into /shows.
 type Route struct {
-	Prefix      string // e.g. "/api/auth"
-	Backend     string
-	StripPrefix string // what to remove before proxying, e.g. "/api"
-	Public      bool   // no access token required
-	PublicGET   bool   // GET is public, other methods require auth
+	Prefix       string // public path prefix, e.g. "/api/auth"
+	Backend      string
+	TargetPrefix string // prefix on the backend, e.g. "/auth" or ""
+	Public       bool   // no access token required
+	PublicGET    bool   // GET is public, other methods require auth
 }
 
 // Gateway holds configuration and wiring.
@@ -98,21 +100,18 @@ func New(cfg Config) (*Gateway, error) {
 
 func defaultRoutes() []Route {
 	return []Route{
-		{Prefix: "/api/auth", Backend: "auth", StripPrefix: "/api", Public: true},
-		{Prefix: "/api/catalog", Backend: "content", StripPrefix: "/api/catalog", PublicGET: true},
-		{Prefix: "/api/me", Backend: "user", StripPrefix: "/api"},
-		{Prefix: "/api/users", Backend: "user", StripPrefix: "/api"},
-		{Prefix: "/api/creator", Backend: "content", StripPrefix: "/api/creator"},
-		{Prefix: "/api/admin/content", Backend: "content", StripPrefix: "/api/admin/content"},
-		{Prefix: "/api/admin/users", Backend: "auth", StripPrefix: "/api/admin/users"},
-		{Prefix: "/api/admin/entitlements", Backend: "user", StripPrefix: "/api/admin/entitlements"},
-		{Prefix: "/api/admin/analytics", Backend: "analytics", StripPrefix: "/api/admin"},
-		{Prefix: "/api/admin/jobs", Backend: "ai-media", StripPrefix: "/api/admin"},
-		{Prefix: "/api/playback", Backend: "playback", StripPrefix: "/api"},
-		{Prefix: "/api/recommendations", Backend: "recommendation", StripPrefix: "/api"},
-		{Prefix: "/api/generate", Backend: "ai-media", StripPrefix: "/api"},
-		{Prefix: "/api/ai", Backend: "ai-media", StripPrefix: "/api"},
-		{Prefix: "/api/analytics", Backend: "analytics", StripPrefix: "/api"},
+		// Longest / most specific prefixes first.
+		{Prefix: "/api/admin/users", Backend: "auth", TargetPrefix: "/auth/admin/users"},
+		{Prefix: "/api/admin/entitlements", Backend: "user", TargetPrefix: "/admin"},
+		{Prefix: "/api/auth", Backend: "auth", TargetPrefix: "/auth", Public: true},
+		{Prefix: "/api/catalog", Backend: "content", TargetPrefix: "", PublicGET: true},
+		{Prefix: "/api/content", Backend: "content", TargetPrefix: ""},
+		{Prefix: "/api/me", Backend: "user", TargetPrefix: "/me"},
+		{Prefix: "/api/playback", Backend: "playback", TargetPrefix: "/playback"},
+		{Prefix: "/api/recommendations", Backend: "recommendation", TargetPrefix: "/recommendations", PublicGET: true},
+		{Prefix: "/api/generate", Backend: "ai-media", TargetPrefix: "/generate"},
+		{Prefix: "/api/ai", Backend: "ai-media", TargetPrefix: "/ai"},
+		{Prefix: "/api/analytics", Backend: "analytics", TargetPrefix: "/analytics"},
 	}
 }
 
@@ -193,12 +192,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Rewrite the path for the backend.
-	if route.StripPrefix != "" && strings.HasPrefix(r.URL.Path, route.StripPrefix) {
-		r.URL.Path = r.URL.Path[len(route.StripPrefix):]
-		if r.URL.Path == "" {
-			r.URL.Path = "/"
-		}
+	// Rewrite the path for the backend: replace the gateway prefix with the
+	// backend's target prefix.
+	rest := strings.TrimPrefix(r.URL.Path, route.Prefix)
+	r.URL.Path = route.TargetPrefix + rest
+	if r.URL.Path == "" {
+		r.URL.Path = "/"
 	}
 
 	start := time.Now()
