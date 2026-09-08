@@ -72,7 +72,7 @@ export default function JobsPage() {
                   <td className="py-2 pr-3 text-bone-300">{j.attempts}</td>
                   <td className="py-2 pr-3 text-bone-400">{relativeTime(j.created_at)}</td>
                   <td className="py-2 pr-3 text-xs text-bone-400">
-                    {j.error || j.events?.at(-1)?.note || "—"}
+                    {j.error || j.events?.at(-1)?.note || "-"}
                   </td>
                 </tr>
               ))}

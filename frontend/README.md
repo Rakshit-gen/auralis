@@ -27,13 +27,13 @@ The browser calls the API gateway directly using `NEXT_PUBLIC_API_BASE`
 
 ## Structure
 
-- `src/lib/api.ts` — fetch wrapper: attaches the access token, refreshes once on 401.
-- `src/lib/hooks.ts` / `src/lib/creator.ts` — typed query and mutation hooks.
-- `src/stores/auth.ts` — session, login/register/logout.
-- `src/stores/player.ts` — queue, transport state, resume, and playback-event emission.
-- `src/lib/playback-events.ts` — batches PLAY/PAUSE/SEEK/PROGRESS/COMPLETE/SKIP/BUFFER events;
+- `src/lib/api.ts` - fetch wrapper: attaches the access token, refreshes once on 401.
+- `src/lib/hooks.ts` / `src/lib/creator.ts` - typed query and mutation hooks.
+- `src/stores/auth.ts` - session, login/register/logout.
+- `src/stores/player.ts` - queue, transport state, resume, and playback-event emission.
+- `src/lib/playback-events.ts` - batches PLAY/PAUSE/SEEK/PROGRESS/COMPLETE/SKIP/BUFFER events;
   important ones flush immediately, PROGRESS on a 15s interval, and a `sendBeacon` on unload.
-- `src/components/player/audio-engine.tsx` — the single `<audio>` element, HLS via hls.js
+- `src/components/player/audio-engine.tsx` - the single `<audio>` element, HLS via hls.js
   with a native fallback, preview-limit enforcement for premium episodes.
 
 ## Pages
