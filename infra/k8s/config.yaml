@@ -1,0 +1,70 @@
+# Non-secret configuration shared by every service. Values here are safe to
+# commit. Anything sensitive goes in the Secret below, which ships with dev
+# placeholders that MUST be replaced before deploying anywhere public
+# (`kubectl create secret ...` or a sealed-secrets / external-secrets flow).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auralis-config
+  namespace: auralis
+data:
+  LOG_LEVEL: "info"
+  JWT_ISSUER: "auralis-auth"
+  JWT_AUDIENCE: "auralis"
+  KAFKA_BROKERS: "redpanda:9092"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+  CORS_ALLOWED_ORIGINS: "http://localhost:3000"
+  # Object storage (in-cluster MinIO by default; point at R2/S3 in prod).
+  S3_ENDPOINT: "minio:9000"
+  S3_BUCKET: "auralis-media"
+  S3_REGION: "us-east-1"
+  S3_USE_SSL: "false"
+  # Service discovery.
+  AUTH_SERVICE_URL: "http://auth:8081"
+  USER_SERVICE_URL: "http://user:8083"
+  CONTENT_SERVICE_URL: "http://content:8082"
+  PLAYBACK_SERVICE_URL: "http://playback:8084"
+  RECOMMENDATION_SERVICE_URL: "http://recommendation:8086"
+  AI_MEDIA_SERVICE_URL: "http://ai-media:8085"
+  ANALYTICS_SERVICE_URL: "http://analytics:8087"
+  REDIS_URL: "redis://redis:6379/0"
+  AI_DEFAULT_PROVIDER: "auto"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auralis-secrets
+  namespace: auralis
+type: Opaque
+stringData:
+  # CHANGE ALL OF THESE before any non-local deployment. The three shared
+  # secrets must be identical across every service.
+  JWT_SECRET: "dev-jwt-secret-change-me-0123456789"
+  IDENTITY_SECRET: "dev-identity-secret-change-me-0123456789"
+  SERVICE_SHARED_TOKEN: "dev-service-token-change-me-0123456789"
+  ADMIN_EMAIL: "admin@auralis.local"
+  ADMIN_PASSWORD: "auralis-admin-pw"
+  POSTGRES_USER: "auralis"
+  POSTGRES_PASSWORD: "auralis"
+  S3_ACCESS_KEY: "auralis"
+  S3_SECRET_KEY: "auralis-secret"
+  # Optional: set to use Groq for script generation. Empty uses the local
+  # deterministic generator.
+  GROQ_API_KEY: ""
+---
+# Per-service database URLs. In-cluster Postgres by default; replace each value
+# with the managed connection string (Neon, RDS, Cloud SQL) in production.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auralis-db
+  namespace: auralis
+type: Opaque
+stringData:
+  AUTH_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/auth?sslmode=disable"
+  USER_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/users?sslmode=disable"
+  CONTENT_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/content?sslmode=disable"
+  PLAYBACK_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/playback?sslmode=disable"
+  ANALYTICS_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/analytics?sslmode=disable"
+  AI_MEDIA_DATABASE_URL: "postgresql://auralis:auralis@postgres:5432/ai_media"
+  RECOMMENDATION_DATABASE_URL: "postgresql://auralis:auralis@postgres:5432/recommendation"

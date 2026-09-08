@@ -1,0 +1,84 @@
+# In-cluster PostgreSQL for a self-contained deployment. One instance, seven
+# databases, matching the deployed topology where each is a separate managed
+# database. For production, delete this file and point each *_DATABASE_URL in
+# config.yaml at a managed Postgres.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: auralis
+data:
+  init.sql: |
+    CREATE DATABASE auth;
+    CREATE DATABASE users;
+    CREATE DATABASE content;
+    CREATE DATABASE playback;
+    CREATE DATABASE analytics;
+    CREATE DATABASE ai_media;
+    CREATE DATABASE recommendation;
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: auralis
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: auralis
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: auralis-secrets, key: POSTGRES_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: auralis-secrets, key: POSTGRES_PASSWORD } }
+            - name: POSTGRES_DB
+              value: postgres
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "auralis"] }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+      volumes:
+        - name: init
+          configMap: { name: postgres-init }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
