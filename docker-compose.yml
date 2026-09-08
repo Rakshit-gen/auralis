@@ -1,0 +1,258 @@
+name: auralis
+
+x-service-env: &service-env
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  IDENTITY_SECRET: ${IDENTITY_SECRET}
+  SERVICE_SHARED_TOKEN: ${SERVICE_SHARED_TOKEN}
+  JWT_SECRET: ${JWT_SECRET}
+  JWT_ISSUER: auralis-auth
+  JWT_AUDIENCE: auralis
+  KAFKA_BROKERS: kafka:9092
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+  S3_ENDPOINT: minio:9000
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER:-auralis}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-auralis-secret}
+  S3_BUCKET: auralis-media
+  S3_REGION: us-east-1
+  S3_USE_SSL: "false"
+
+x-go-build: &go-build
+  restart: unless-stopped
+  depends_on:
+    postgres: { condition: service_healthy }
+    kafka: { condition: service_healthy }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: auralis
+      POSTGRES_PASSWORD: auralis
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/compose/postgres-init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auralis"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: bitnami/kafka:3.9
+    environment:
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_NUM_PARTITIONS: "3"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    volumes: [kafkadata:/bitnami/kafka]
+    ports: ["9092:9092"]
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-auralis}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-auralis-secret}
+    volumes: [miniodata:/data]
+    ports: ["9000:9000", "9001:9001"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./infra/compose/otel-collector.yaml:/etc/otel/config.yaml:ro
+    ports: ["4317:4317", "4318:4318", "8889:8889"]
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.enable-lifecycle"]
+    volumes:
+      - ./infra/compose/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - ./infra/compose/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    ports: ["3001:3000"]
+    depends_on: [prometheus]
+
+  # --- Go services -------------------------------------------------------
+  gateway:
+    <<: *go-build
+    build: { context: ., dockerfile: services/gateway/Dockerfile }
+    environment:
+      <<: *service-env
+      GATEWAY_HTTP_ADDR: ":8080"
+      REDIS_URL: redis://redis:6379/0
+      AUTH_SERVICE_URL: http://auth:8081
+      USER_SERVICE_URL: http://user:8083
+      CONTENT_SERVICE_URL: http://content:8082
+      PLAYBACK_SERVICE_URL: http://playback:8084
+      RECOMMENDATION_SERVICE_URL: http://recommendation:8086
+      AI_MEDIA_SERVICE_URL: http://ai-media:8085
+      ANALYTICS_SERVICE_URL: http://analytics:8087
+    ports: ["8080:8080"]
+    depends_on:
+      redis: { condition: service_healthy }
+      auth: { condition: service_started }
+
+  auth:
+    <<: *go-build
+    build: { context: ., dockerfile: services/auth/Dockerfile }
+    environment:
+      <<: *service-env
+      AUTH_HTTP_ADDR: ":8081"
+      AUTH_DATABASE_URL: postgres://auralis:auralis@postgres:5432/auth?sslmode=disable
+      AUTH_BOOTSTRAP_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@auralis.local}
+      AUTH_BOOTSTRAP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-auralis-admin-pw}
+      AUTH_BOOTSTRAP_ADMIN_NAME: Auralis Admin
+    ports: ["8081:8081"]
+
+  user:
+    <<: *go-build
+    build: { context: ., dockerfile: services/user/Dockerfile }
+    environment:
+      <<: *service-env
+      USER_HTTP_ADDR: ":8083"
+      USER_DATABASE_URL: postgres://auralis:auralis@postgres:5432/users?sslmode=disable
+    ports: ["8083:8083"]
+
+  content:
+    <<: *go-build
+    build: { context: ., dockerfile: services/content/Dockerfile }
+    environment:
+      <<: *service-env
+      CONTENT_HTTP_ADDR: ":8082"
+      CONTENT_DATABASE_URL: postgres://auralis:auralis@postgres:5432/content?sslmode=disable
+    ports: ["8082:8082"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      minio: { condition: service_healthy }
+
+  playback:
+    <<: *go-build
+    build: { context: ., dockerfile: services/playback/Dockerfile }
+    environment:
+      <<: *service-env
+      PLAYBACK_HTTP_ADDR: ":8084"
+      PLAYBACK_DATABASE_URL: postgres://auralis:auralis@postgres:5432/playback?sslmode=disable
+      CONTENT_SERVICE_URL: http://content:8082
+      USER_SERVICE_URL: http://user:8083
+    ports: ["8084:8084"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      minio: { condition: service_healthy }
+
+  analytics:
+    <<: *go-build
+    build: { context: ., dockerfile: services/analytics/Dockerfile }
+    environment:
+      <<: *service-env
+      ANALYTICS_HTTP_ADDR: ":8087"
+      ANALYTICS_DATABASE_URL: postgres://auralis:auralis@postgres:5432/analytics?sslmode=disable
+    ports: ["8087:8087"]
+
+  # --- Python services --------------------------------------------------
+  ai-media:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/ai_media/Dockerfile }
+    environment:
+      <<: *service-env
+      AI_MEDIA_HTTP_ADDR: "0.0.0.0:8085"
+      AI_MEDIA_DATABASE_URL: postgresql://auralis:auralis@postgres:5432/ai_media
+      CONTENT_SERVICE_URL: http://content:8082
+      USER_SERVICE_URL: http://user:8083
+      AI_MEDIA_RUN_WORKER: "false"
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      AI_DEFAULT_PROVIDER: ${AI_DEFAULT_PROVIDER:-auto}
+    ports: ["8085:8085"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      minio: { condition: service_healthy }
+
+  ai-media-worker:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/ai_media/Dockerfile }
+    command: ["worker"]
+    environment:
+      <<: *service-env
+      AI_MEDIA_DATABASE_URL: postgresql://auralis:auralis@postgres:5432/ai_media
+      CONTENT_SERVICE_URL: http://content:8082
+      SKIP_MIGRATE: "true"
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      AI_DEFAULT_PROVIDER: ${AI_DEFAULT_PROVIDER:-auto}
+    depends_on:
+      ai-media: { condition: service_started }
+
+  recommendation:
+    restart: unless-stopped
+    build: { context: ., dockerfile: services/recommendation/Dockerfile }
+    environment:
+      <<: *service-env
+      RECOMMENDATION_HTTP_ADDR: "0.0.0.0:8086"
+      RECOMMENDATION_DATABASE_URL: postgresql://auralis:auralis@postgres:5432/recommendation
+    ports: ["8086:8086"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  # --- Web client ------------------------------------------------------
+  frontend:
+    restart: unless-stopped
+    build: { context: ., dockerfile: frontend/Dockerfile }
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8080/api}
+    ports: ["3000:3000"]
+    depends_on:
+      gateway: { condition: service_started }
+
+volumes:
+  pgdata:
+  redisdata:
+  kafkadata:
+  miniodata:
+  promdata:
+  grafanadata:

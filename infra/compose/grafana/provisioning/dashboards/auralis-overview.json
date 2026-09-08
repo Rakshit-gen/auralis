@@ -1,0 +1,72 @@
+{
+  "title": "Auralis Overview",
+  "uid": "auralis-overview",
+  "tags": ["auralis"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP requests / sec by service",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "sum by (service) (rate(auralis_http_requests_total[1m]))", "legendFormat": "{{service}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP p95 latency by service",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(auralis_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "5xx responses / sec",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "sum by (service) (rate(auralis_http_errors_total[1m]))", "legendFormat": "{{service}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Kafka consumer lag (messages)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "sum by (service, topic) (auralis_kafka_consumer_lag_messages)", "legendFormat": "{{service}} {{topic}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "AI generation & TTS duration (p90)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.9, sum by (stage, le) (rate(auralis_ai_generation_duration_seconds_bucket[10m])))",
+          "legendFormat": "ai {{stage}}"
+        },
+        {
+          "expr": "histogram_quantile(0.9, sum by (provider, le) (rate(auralis_tts_duration_seconds_bucket[10m])))",
+          "legendFormat": "tts {{provider}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Worker job duration (p90)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.9, sum by (job, le) (rate(auralis_worker_job_duration_seconds_bucket[10m])))",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    }
+  ]
+}

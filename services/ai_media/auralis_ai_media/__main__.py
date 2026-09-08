@@ -8,6 +8,7 @@ python -m auralis_ai_media migrate   run Alembic migrations and exit
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import sys
 
@@ -17,6 +18,13 @@ def main() -> None:
 
     if arg == "migrate":
         raise SystemExit(subprocess.call(["alembic", "upgrade", "head"]))
+
+    # API and worker both run migrations first unless told not to. Alembic's
+    # version table makes this idempotent and safe with concurrent starts.
+    if os.environ.get("SKIP_MIGRATE", "").lower() not in ("1", "true", "yes"):
+        rc = subprocess.call(["alembic", "upgrade", "head"])
+        if rc != 0:
+            raise SystemExit(rc)
 
     if arg == "worker":
         from auralis_ai_media.app import run_worker_only

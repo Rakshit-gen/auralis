@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: auralis-services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - gateway:8080
+          - auth:8081
+          - content:8082
+          - user:8083
+          - playback:8084
+          - ai-media:8085
+          - recommendation:8086
+          - analytics:8087
+        labels:
+          platform: auralis
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

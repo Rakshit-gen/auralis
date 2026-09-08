@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
@@ -16,6 +17,11 @@ def main() -> None:
 
     if arg == "migrate":
         raise SystemExit(subprocess.call(["alembic", "upgrade", "head"]))
+
+    if arg not in ("evaluate",) and os.environ.get("SKIP_MIGRATE", "").lower() not in ("1", "true", "yes"):
+        rc = subprocess.call(["alembic", "upgrade", "head"])
+        if rc != 0:
+            raise SystemExit(rc)
 
     if arg == "evaluate":
         sys.argv = [sys.argv[0], *sys.argv[2:]]
