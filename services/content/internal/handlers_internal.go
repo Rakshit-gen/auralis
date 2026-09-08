@@ -118,6 +118,10 @@ func (a *App) internalCreateEpisode(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.Unexpected("could not create episode: "+err.Error()))
 		return
 	}
+	if err := a.Store.RefreshEpisodeCount(ctx, req.ShowID); err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not update show episode count"))
+		return
+	}
 	httpx.JSON(w, http.StatusCreated, e)
 }
 

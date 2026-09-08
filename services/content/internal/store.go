@@ -521,6 +521,24 @@ func (s *Store) AttachMedia(ctx context.Context, id string, m MediaMetadata) err
 	return err
 }
 
+// RefreshEpisodeCount recomputes shows.episode_count for a single show. While
+// the show is still unpublished it counts every episode, so a creator sees the
+// real number on an AI-generated draft; once the show is published it counts
+// only published episodes, matching RecalcShowAggregates. total_duration_sec is
+// left to RecalcShowAggregates, which runs at publish time.
+func (s *Store) RefreshEpisodeCount(ctx context.Context, showID string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE shows s SET
+			episode_count = (
+				SELECT count(*) FROM episodes e
+				WHERE e.show_id = s.id
+				  AND (s.status <> 'published' OR e.status = 'published')
+			),
+			updated_at = now()
+		 WHERE s.id = $1`, showID)
+	return err
+}
+
 // RecalcShowAggregates refreshes episode_count and total_duration_sec from
 // published episodes.
 func (s *Store) RecalcShowAggregates(ctx context.Context, tx pgx.Tx, showID string) error {
