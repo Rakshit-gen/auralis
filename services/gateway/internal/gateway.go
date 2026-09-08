@@ -95,6 +95,15 @@ func New(cfg Config) (*Gateway, error) {
 		}
 		b := &Backend{Name: name, URL: base}
 		b.proxy = httputil.NewSingleHostReverseProxy(u)
+		// NewSingleHostReverseProxy rewrites the URL host but leaves the Host
+		// header as the caller sent it. Platforms that route by Host (Render,
+		// most PaaS edges) would bounce the request back to the gateway, so
+		// pin the Host header to the backend too.
+		baseDirector := b.proxy.Director
+		b.proxy.Director = func(r *http.Request) {
+			baseDirector(r)
+			r.Host = u.Host
+		}
 		b.proxy.Transport = transport
 		b.proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			logging.L(r.Context()).Error("backend proxy error", "backend", name, "error", err.Error())
