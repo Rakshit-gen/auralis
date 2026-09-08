@@ -4,7 +4,7 @@ WORKDIR /src
 
 COPY libs/go-platform/go.mod libs/go-platform/go.sum ./libs/go-platform/
 COPY services/gateway/go.mod services/gateway/go.sum ./services/gateway/
-RUN cd services/gateway && go work init ../libs/go-platform . && go mod download
+RUN cd services/gateway && go mod download
 
 COPY libs/go-platform ./libs/go-platform
 COPY services/gateway ./services/gateway

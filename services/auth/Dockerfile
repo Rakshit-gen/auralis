@@ -6,7 +6,7 @@ WORKDIR /src
 # module trees are copied and wired with a build-scoped go.work.
 COPY libs/go-platform/go.mod libs/go-platform/go.sum ./libs/go-platform/
 COPY services/auth/go.mod services/auth/go.sum ./services/auth/
-RUN cd services/auth && go work init ../libs/go-platform . && go mod download
+RUN cd services/auth && go mod download
 
 COPY libs/go-platform ./libs/go-platform
 COPY services/auth ./services/auth

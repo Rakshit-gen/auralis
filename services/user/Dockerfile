@@ -4,7 +4,7 @@ WORKDIR /src
 
 COPY libs/go-platform/go.mod libs/go-platform/go.sum ./libs/go-platform/
 COPY services/user/go.mod services/user/go.sum ./services/user/
-RUN cd services/user && go work init ../libs/go-platform . && go mod download
+RUN cd services/user && go mod download
 
 COPY libs/go-platform ./libs/go-platform
 COPY services/user ./services/user
