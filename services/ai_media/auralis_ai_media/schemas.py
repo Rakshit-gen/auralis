@@ -50,6 +50,9 @@ class StoryBible(BaseModel):
     relationships: list[Relationship] = Field(default_factory=list, max_length=20)
     arc: StoryArc
     episode_count: int = Field(ge=3, le=30)
+    # ISO 639-1 code the narration and dialogue are actually written in. Set by
+    # the pipeline from the provider's output, not chosen by the model.
+    language: str = Field(default="en", max_length=8)
 
 
 class EpisodeOutline(BaseModel):
@@ -109,3 +112,4 @@ class ContinuityContext(BaseModel):
     unresolved_threads: list[str] = Field(default_factory=list)
     arc: StoryArc
     outline: EpisodeOutline
+    language: str = Field(default="en", max_length=8)

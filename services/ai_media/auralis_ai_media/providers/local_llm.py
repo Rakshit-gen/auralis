@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import random
 
+import structlog
+
+from auralis_ai_media.languages import normalize
 from auralis_ai_media.providers.base import GenerationError
 from auralis_ai_media.schemas import (
     Character,
@@ -25,6 +28,8 @@ from auralis_ai_media.schemas import (
     StoryBible,
     WorldRule,
 )
+
+log = structlog.get_logger()
 
 _SETTINGS = [
     ("a tidal city built on the backs of sleeping leviathans", "coastal, brass and salt"),
@@ -70,7 +75,12 @@ def _person(r: random.Random) -> str:
 class LocalLLMProvider:
     name = "local"
 
-    async def generate_bible(self, brief: str, episode_count: int, seed: int) -> StoryBible:
+    async def generate_bible(self, brief: str, episode_count: int, seed: int, language: str = "en") -> StoryBible:
+        if normalize(language) != "en":
+            log.warning(
+                "local provider cannot translate; generating an English series",
+                requested_language=normalize(language),
+            )
         r = _rng(seed)
         setting, _palette = r.choice(_SETTINGS)
         engine = r.choice(_ENGINES)
@@ -164,7 +174,7 @@ class LocalLLMProvider:
         )
         return bible
 
-    async def generate_outlines(self, bible: StoryBible, seed: int) -> list[EpisodeOutline]:
+    async def generate_outlines(self, bible: StoryBible, seed: int, language: str = "en") -> list[EpisodeOutline]:
         r = _rng(seed + 101)
         n = bible.episode_count
         lead = bible.characters[0].name
@@ -250,7 +260,7 @@ class LocalLLMProvider:
             recap=recap,
         )
 
-    async def generate_metadata(self, bible: StoryBible, seed: int) -> GeneratedMetadata:
+    async def generate_metadata(self, bible: StoryBible, seed: int, language: str = "en") -> GeneratedMetadata:
         r = _rng(seed + 303)
         tag_pool = (
             list(bible.concept.genres)

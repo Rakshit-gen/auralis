@@ -13,6 +13,7 @@ from auralis_common.svcclient import ServiceClient
 from auralis_common.telemetry import AI_DURATION, TTS_DURATION, timed
 
 from auralis_ai_media import models
+from auralis_ai_media.languages import normalize
 from auralis_ai_media.pipeline import media
 from auralis_ai_media.providers.base import LLMProvider, TTSProvider, TTSSegment
 from auralis_ai_media.repo import Repo
@@ -41,14 +42,27 @@ class Pipeline:
         brief = str(job.prompt.get("brief", "")).strip()
         episode_count = int(job.prompt.get("episode_count", 8))
         seed = int(job.prompt.get("seed", abs(hash(job.id)) % (2**31)))
-        language = job.prompt.get("language_code", "en")
+        requested_language = normalize(job.prompt.get("language_code", "en"))
 
         await repo.advance_job(job, "generating_bible", 10)
         await repo.s.flush()
         with timed(AI_DURATION, "ai-media", "bible", self.llm.name):
-            bible = await self.llm.generate_bible(brief, episode_count, seed)
+            bible = await self.llm.generate_bible(brief, episode_count, seed, requested_language)
+
+        # The provider is the authority on which language it actually wrote in: a
+        # local fallback cannot translate, so a Hindi request can come back as an
+        # English bible. Label the show for what it is.
+        language = normalize(bible.language)
+        if language != requested_language:
+            log.warning(
+                "generation language downgraded",
+                job_id=job.id,
+                requested=requested_language,
+                produced=language,
+            )
+
         with timed(AI_DURATION, "ai-media", "metadata", self.llm.name):
-            meta = await self.llm.generate_metadata(bible, seed)
+            meta = await self.llm.generate_metadata(bible, seed, language)
 
         show = await self.content.post(
             "/internal/authoring/shows",
@@ -73,7 +87,7 @@ class Pipeline:
         await repo.advance_job(job, "generating_outline", 30)
         await repo.s.flush()
         with timed(AI_DURATION, "ai-media", "outlines", self.llm.name):
-            outlines = await self.llm.generate_outlines(bible, seed)
+            outlines = await self.llm.generate_outlines(bible, seed, language)
 
         child_ids: list[str] = []
         for outline in outlines:
@@ -99,7 +113,7 @@ class Pipeline:
                 show_id=show_id,
                 episode_id=episode["id"],
                 episode_number=outline.number,
-                prompt={"outline": outline.model_dump(), "seed": seed},
+                prompt={"outline": outline.model_dump(), "seed": seed, "language": language},
             )
             child_ids.append(child.id)
 
@@ -117,6 +131,8 @@ class Pipeline:
         if bible is None:
             raise RuntimeError(f"no story bible for show {show_id}")
 
+        language = normalize(job.prompt.get("language") or bible.language)
+
         ctx = ContinuityContext(
             concept=bible.concept,
             characters=bible.characters,
@@ -125,6 +141,7 @@ class Pipeline:
             unresolved_threads=await repo.unresolved_threads(show_id),
             arc=bible.arc,
             outline=outline,
+            language=language,
         )
 
         await repo.advance_job(job, "generating_script", 15)
@@ -155,7 +172,7 @@ class Pipeline:
                 for ln in script.lines
             ]
             with timed(TTS_DURATION, "ai-media", self.tts.name):
-                tts_result = await self.tts.synthesize(segments, os.path.join(work, "tts"))
+                tts_result = await self.tts.synthesize(segments, os.path.join(work, "tts"), language=language)
 
             await repo.advance_job(job, "assembling", 60)
             await self._patch_episode(job.id, episode_id, {"processing": "assembling"})
