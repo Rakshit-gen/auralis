@@ -76,6 +76,16 @@ func main() {
 		AccessTTL: accessTTL, RefreshTTL: refreshTTL,
 	})
 
+	if adminEmail := c.Optional("AUTH_BOOTSTRAP_ADMIN_EMAIL", ""); adminEmail != "" {
+		pw := c.Optional("AUTH_BOOTSTRAP_ADMIN_PASSWORD", "")
+		name := c.Optional("AUTH_BOOTSTRAP_ADMIN_NAME", "Auralis Admin")
+		if err := app.BootstrapAdmin(ctx, adminEmail, pw, name); err != nil {
+			log.Error("admin bootstrap failed", "error", err.Error())
+		} else {
+			log.Info("admin bootstrap ensured", "email", adminEmail)
+		}
+	}
+
 	reg := health.New("auth", version)
 	reg.Add("database", db.ReadyCheck(pool))
 

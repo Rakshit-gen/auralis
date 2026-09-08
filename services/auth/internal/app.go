@@ -40,6 +40,54 @@ func NewApp(store *Store, tokens TokenConfig) *App {
 	return &App{Store: store, Tokens: tokens}
 }
 
+// BootstrapAdmin ensures an admin account exists. It is idempotent: an existing
+// account is promoted to ADMIN (password untouched); a new one is created with
+// USER, CREATOR, and ADMIN roles and a user.registered event is enqueued so the
+// user service provisions its profile. Called once at startup when
+// AUTH_BOOTSTRAP_ADMIN_EMAIL is configured.
+func (a *App) BootstrapAdmin(ctx context.Context, email, password, displayName string) error {
+	norm := normalizeEmail(email)
+	if norm == "" {
+		return errcodes.BadRequest("AUTH_BOOTSTRAP_ADMIN_EMAIL is not a valid address")
+	}
+	existing, err := a.Store.UserByEmailNorm(ctx, norm)
+	if err == nil {
+		if !existing.HasAdmin() {
+			_, e := a.Store.SetRoles(ctx, existing.ID, appendRole(existing.Roles, authn.RoleAdmin))
+			return e
+		}
+		return nil
+	}
+	if err != ErrNotFound {
+		return err
+	}
+	if len(password) < 10 {
+		return errcodes.BadRequest("AUTH_BOOTSTRAP_ADMIN_PASSWORD must be at least 10 characters")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return err
+	}
+	tx, err := a.Store.Pool().Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	user, err := a.Store.CreateUser(ctx, tx, email, norm, string(hash), displayName,
+		[]string{authn.RoleUser, authn.RoleCreator, authn.RoleAdmin})
+	if err != nil {
+		return err
+	}
+	env, _ := envelope.New("user.registered", 1, service, "", "", map[string]any{
+		"user_id": user.ID, "email": user.Email, "display_name": user.DisplayName,
+		"roles": user.Roles, "registered_at": user.CreatedAt,
+	})
+	if err := outbox.Enqueue(ctx, tx, kafkax.TopicUserEvents, user.ID, env); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // Routes registers auth endpoints. All are public at the gateway; the service
 // authorizes admin actions itself using forwarded identity headers.
 func (a *App) Routes(r chi.Router) {

@@ -23,6 +23,9 @@ type User struct {
 	CreatedAt    time.Time
 }
 
+// HasAdmin reports whether the user holds the ADMIN role.
+func (u User) HasAdmin() bool { return containsRole(u.Roles, "ADMIN") }
+
 // RefreshRow is a stored refresh token record.
 type RefreshRow struct {
 	ID        string
@@ -40,6 +43,22 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 // Pool exposes the connection pool for transactional work in the app layer.
 func (s *Store) Pool() *pgxpool.Pool { return s.pool }
+
+func containsRole(roles []string, r string) bool {
+	for _, x := range roles {
+		if x == r {
+			return true
+		}
+	}
+	return false
+}
+
+func appendRole(roles []string, r string) []string {
+	if containsRole(roles, r) {
+		return roles
+	}
+	return append(append([]string{}, roles...), r)
+}
 
 func (s *Store) CreateUser(ctx context.Context, tx pgx.Tx, email, emailNorm, hash, displayName string, roles []string) (User, error) {
 	var u User
