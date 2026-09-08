@@ -165,6 +165,23 @@ func ServiceMiddleware(secret string) func(http.Handler) http.Handler {
 	}
 }
 
+// ServiceToken returns middleware that requires a shared service token in the
+// X-Auralis-Service-Token header. Used for internal service-to-service calls
+// that do not carry a user identity (for example ai-media driving the catalog).
+func ServiceToken(token string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got := r.Header.Get("X-Auralis-Service-Token")
+			if token == "" || got == "" || !hmac.Equal([]byte(got), []byte(token)) {
+				errcodes.Write(w, r.Header.Get("X-Auralis-Request-Id"),
+					errcodes.Unauthed("valid service token required"))
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireRoles returns middleware that rejects callers lacking any of roles.
 func RequireRoles(roles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

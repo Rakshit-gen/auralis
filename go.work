@@ -1,6 +1,7 @@
-go 1.25
+go 1.25.0
 
 use (
 	./libs/go-platform
 	./services/auth
+	./services/content
 )
