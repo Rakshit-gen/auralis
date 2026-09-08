@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "@/lib/providers";
 import { Nav } from "@/components/layout/nav";
+import { AuthGate } from "@/components/auth-gate";
 import { OceanWaves } from "@/components/ocean-waves";
 import { AudioEngine } from "@/components/player/audio-engine";
 import { PlayerBar } from "@/components/player/player-bar";
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AudioEngine />
           <PlayerBar />
           <ShortcutsHelp />
+          <AuthGate />
         </Providers>
       </body>
     </html>

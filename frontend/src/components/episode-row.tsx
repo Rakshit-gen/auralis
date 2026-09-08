@@ -8,6 +8,7 @@ import { BookmarkIcon, PlayIcon, PauseIcon } from "@/components/icons";
 import { ProgressBar } from "@/components/ui";
 import { useToggleBookmark, useBookmarks } from "@/lib/hooks";
 import { useAuth } from "@/stores/auth";
+import { useAuthPrompt } from "@/stores/auth-prompt";
 
 export function EpisodeRow({
   episode,
@@ -21,6 +22,7 @@ export function EpisodeRow({
   resumeSec?: number;
 }) {
   const user = useAuth((s) => s.user);
+  const promptSignIn = useAuthPrompt((s) => s.show);
   const current = usePlayer((s) => s.current);
   const playing = usePlayer((s) => s.playing);
   const togglePlay = usePlayer((s) => s.togglePlay);
@@ -35,6 +37,10 @@ export function EpisodeRow({
   const bookmarked = !!bookmarks?.some((b) => b.episode_id === episode.id);
 
   const play = async () => {
+    if (!user) {
+      promptSignIn("Sign in to play this episode.");
+      return;
+    }
     if (isCurrent) {
       togglePlay();
       return;

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { usePlayer } from "@/stores/player";
+import { useAuth } from "@/stores/auth";
+import { useAuthPrompt } from "@/stores/auth-prompt";
 import { Spinner, ErrorState } from "@/components/ui";
 import type { Episode, Show } from "@/lib/types";
 
@@ -15,6 +17,9 @@ import type { Episode, Show } from "@/lib/types";
 function EpisodeDeepLink({ id }: { id: string }) {
   const router = useRouter();
   const playNow = usePlayer((s) => s.playNow);
+  const user = useAuth((s) => s.user);
+  const authReady = useAuth((s) => s.ready);
+  const promptSignIn = useAuthPrompt((s) => s.show);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["episode-deep", id],
@@ -28,7 +33,12 @@ function EpisodeDeepLink({ id }: { id: string }) {
   });
 
   useEffect(() => {
-    if (!data?.episode) return;
+    if (!data?.episode || !authReady) return;
+    if (!user) {
+      promptSignIn("Sign in to play this episode.");
+      router.replace(data.show?.slug ? `/shows/${data.show.slug}` : "/discover");
+      return;
+    }
     void playNow({
       episodeId: data.episode.id,
       showId: data.episode.show_id,
@@ -38,7 +48,7 @@ function EpisodeDeepLink({ id }: { id: string }) {
       episodeNumber: data.episode.number,
     });
     if (data.show?.slug) router.replace(`/shows/${data.show.slug}`);
-  }, [data, playNow, router]);
+  }, [data, playNow, router, user, authReady, promptSignIn]);
 
   if (isLoading) return <Spinner label="Starting playback" />;
   if (error || !data?.episode) {
