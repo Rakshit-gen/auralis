@@ -1,44 +1,53 @@
 type MarkProps = { className?: string; title?: string };
 
 /**
- * The Auralis mark: a breaking wave whose crest is also a rising waveform. The
- * curl is the ocean, the four bars climbing out of it are an episode playing.
- * One shape for the two things the product is about.
+ * The Auralis mark: a whale curved into a dive, back arched over the top, tail
+ * fluke lifted. The spout off the blowhole is drawn as three rising bars, so it
+ * doubles as an episode playing: the one creature carries the ocean and the
+ * audio at once.
  */
 export function LogoMark({ className = "h-7 w-7", title }: MarkProps) {
   return (
     <svg viewBox="0 0 40 40" className={className} role={title ? "img" : undefined} aria-hidden={!title}>
       {title ? <title>{title}</title> : null}
       <defs>
-        <linearGradient id="auralis-water" x1="0" y1="40" x2="34" y2="4" gradientUnits="userSpaceOnUse">
+        <linearGradient id="auralis-whale" x1="6" y1="30" x2="36" y2="6" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#2b8b88" />
-          <stop offset="0.6" stopColor="#54d0cc" />
+          <stop offset="0.55" stopColor="#54d0cc" />
           <stop offset="1" stopColor="#9bece8" />
         </linearGradient>
       </defs>
-      {/* the curl of the wave */}
+
+      {/* curved diving whale: arched back from the head up over the hump to a
+          raised fluke, one shape */}
       <path
-        d="M4 27c0-9 7.6-16.5 17-16.5 6 0 9.8 3.4 9.8 8 0 4-3 6.8-7 6.8-3.3 0-5.6-2-5.6-4.8 0-2.3 1.6-4 3.8-4 1.7 0 2.9 1 3.1 2.5"
+        d="M8.5 28.2C6.6 19 11 9.5 21 9 28 8.7 32.2 12.6 34 17.4 35.2 14.8 37 12.3 39.2 10.2 38.4 14 37.2 16.6 35.4 18.8 36.7 20.7 37.6 22.9 38.4 25.8 35.6 24.2 33 21.9 31.2 20 28.6 24.2 23.4 26.6 17.6 25.9 13.2 25.4 9.4 25.8 8.5 28.2Z"
+        fill="url(#auralis-whale)"
+      />
+      {/* pectoral fin, tucked under */}
+      <path
+        d="M12.3 25C13.2 28.2 16 29.6 18.7 28.2 16.3 28 13.6 26.8 12.3 25Z"
+        fill="#248481"
+      />
+      {/* jaw line, upturned at the snout */}
+      <path
+        d="M9 26.4C9.4 24.6 11 23.8 12.8 24.5 16 25.7 19.2 25.5 22 24.1"
         fill="none"
-        stroke="url(#auralis-water)"
-        strokeWidth="3.2"
+        stroke="#06202a"
+        strokeOpacity="0.24"
+        strokeWidth="1.1"
         strokeLinecap="round"
       />
-      {/* spray off the crest, doubling as playback bars */}
+      {/* eye */}
+      <circle cx="12.6" cy="21.7" r="1.1" fill="#04070c" />
+      <circle cx="12.2" cy="21.3" r="0.32" fill="#f4efe6" />
+
+      {/* spout off the blowhole, doubling as playback bars */}
       <g fill="#e2a24d">
-        <rect x="24.5" y="9" width="2.6" height="7" rx="1.3" />
-        <rect x="29" y="5.5" width="2.6" height="11" rx="1.3" />
-        <rect x="33.5" y="9.5" width="2.6" height="6" rx="1.3" />
+        <rect x="15.2" y="4.6" width="1.8" height="4.4" rx="0.9" />
+        <rect x="18.1" y="2.1" width="1.8" height="7" rx="0.9" />
+        <rect x="21" y="4" width="1.8" height="5.1" rx="0.9" />
       </g>
-      {/* the water line the wave sits on */}
-      <path
-        d="M3 32c3.5 0 3.5 3 7 3s3.5-3 7-3 3.5 3 7 3 3.5-3 7-3 3.5 3 7 3"
-        fill="none"
-        stroke="#54d0cc"
-        strokeOpacity="0.55"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
     </svg>
   );
 }
