@@ -1,0 +1,47 @@
+[project]
+name = "auralis-ai-media"
+version = "1.0.0"
+description = "Auralis AI and media service: asynchronous story generation, TTS, FFmpeg, HLS packaging."
+requires-python = ">=3.13"
+dependencies = [
+    "auralis-common",
+    "uvicorn[standard]>=0.30",
+    "alembic>=1.13",
+    "greenlet>=3.1",
+    "minio>=7.2",
+    "mutagen>=1.47",
+    "psycopg[binary]>=3.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.7", "mypy>=1.11"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["auralis_ai_media"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "RUF"]
+# B008: FastAPI's Depends() in defaults is the framework's intended pattern.
+# ASYNC230/240: playlist writes and path stats are tiny and off the request path.
+ignore = ["B008", "ASYNC230", "ASYNC240"]
+
+[tool.ruff.lint.per-file-ignores]
+# The local generator is a prose-heavy content file; long narration strings are
+# clearer on one line.
+"auralis_ai_media/providers/local_llm.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
