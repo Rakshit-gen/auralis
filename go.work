@@ -1,0 +1,11 @@
+go 1.25
+
+use (
+	./libs/go-platform
+	./services/gateway
+	./services/auth
+	./services/user
+	./services/content
+	./services/playback
+	./services/analytics
+)
