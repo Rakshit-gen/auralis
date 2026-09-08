@@ -43,3 +43,6 @@ out/
 
 # native dev stack runtime state
 .native/
+
+# Piper TTS binary and voice models (scripts/piper-setup.sh)
+.piper/

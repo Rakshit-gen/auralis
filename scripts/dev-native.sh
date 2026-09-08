@@ -2,7 +2,8 @@
 # Run the whole Auralis backend natively, without containers.
 #
 # Requires local Postgres, Redis, Kafka, and MinIO plus Go 1.25, a Python 3.13
-# venv at .venv, and ffmpeg + espeak-ng for the ai-media worker. Intended for
+# venv at .venv, and ffmpeg for the ai-media worker (run scripts/piper-setup.sh
+# for neural voices, or install espeak-ng for the fallback). Intended for
 # development on a machine without a container runtime; production uses the
 # Docker/Helm path.
 #
@@ -87,7 +88,10 @@ cmd_up() {
     CONTENT_SERVICE_URL="http://localhost:8082" USER_SERVICE_URL="http://localhost:8083" \
     start playback "$RUN/bin/playback"
 
-  AI_MEDIA_DATABASE_URL="$(pgpy ai_media)" AI_MEDIA_HTTP_ADDR="0.0.0.0:8085" \
+  # Piper neural voices if scripts/piper-setup.sh has been run, else espeak-ng.
+  PIPER_VOICES_DIR="${PIPER_VOICES_DIR:-$ROOT/.piper/voices}" \
+    PIPER_BIN="${PIPER_BIN:-$ROOT/.piper/bin/piper}" \
+    AI_MEDIA_DATABASE_URL="$(pgpy ai_media)" AI_MEDIA_HTTP_ADDR="0.0.0.0:8085" \
     CONTENT_SERVICE_URL="http://localhost:8082" USER_SERVICE_URL="http://localhost:8083" \
     AI_MEDIA_RUN_WORKER=true AI_DEFAULT_PROVIDER="${AI_DEFAULT_PROVIDER:-local}" \
     start ai-media bash -c "cd '$ROOT/services/ai_media' && exec '$VENV/bin/python' -m auralis_ai_media"
