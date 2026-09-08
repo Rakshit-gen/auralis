@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { RequireAuth } from "@/components/layout/require-auth";
 import { api, ApiError } from "@/lib/api";
@@ -59,7 +59,7 @@ function StageTrack({ progress, status }: { progress: number; status: string }) 
   );
 }
 
-function JobStatus({ jobId }: { jobId: string }) {
+function JobStatus({ jobId, onSettled }: { jobId: string; onSettled: () => void }) {
   const { data: job } = useQuery({
     queryKey: ["job", jobId],
     queryFn: () => api<GenerationJob>(`/generate/jobs/${jobId}`),
@@ -68,6 +68,11 @@ function JobStatus({ jobId }: { jobId: string }) {
       return s === "completed" || s === "failed" ? false : 2500;
     },
   });
+
+  const settled = job?.status === "completed" || job?.status === "failed";
+  useEffect(() => {
+    if (settled) onSettled();
+  }, [settled, onSettled]);
 
   if (!job) return null;
 
@@ -116,8 +121,11 @@ function GenerateInner() {
   const [language, setLanguage] = useState("en");
   const [isPremium, setIsPremium] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [jobRunning, setJobRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const handleJobSettled = useCallback(() => setJobRunning(false), []);
 
   const EPISODE_MIN = 3;
   const EPISODE_MAX = 24;
@@ -127,7 +135,7 @@ function GenerateInner() {
     return Math.min(EPISODE_MAX, Math.max(EPISODE_MIN, n));
   })();
 
-  const canSubmit = brief.trim().length >= 10 && !busy;
+  const canSubmit = brief.trim().length >= 10 && !busy && !jobRunning;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,6 +153,7 @@ function GenerateInner() {
         },
       });
       setJobId(res.job_id);
+      setJobRunning(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not start generation");
     } finally {
@@ -248,13 +257,20 @@ function GenerateInner() {
 
         {error && <p className="text-sm text-red-400">{error}</p>}
 
-        <button disabled={!canSubmit} className="btn-tide w-full sm:w-auto">
-          <SparkIcon className="h-4 w-4" />
-          {busy ? "Starting the pipeline" : "Generate the series"}
-        </button>
+        <div className="space-y-2">
+          <button disabled={!canSubmit} className="btn-tide w-full sm:w-auto">
+            <SparkIcon className="h-4 w-4" />
+            {busy ? "Starting the pipeline" : jobRunning ? "A series is being built" : "Generate the series"}
+          </button>
+          {jobRunning && (
+            <p className="text-xs text-bone-500">
+              One series builds at a time. You can start another once this run finishes.
+            </p>
+          )}
+        </div>
       </form>
 
-      {jobId && <JobStatus jobId={jobId} />}
+      {jobId && <JobStatus jobId={jobId} onSettled={handleJobSettled} />}
     </div>
   );
 }
