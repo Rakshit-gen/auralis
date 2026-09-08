@@ -70,6 +70,7 @@ class Repo:
                 concept=bible.concept.model_dump(),
                 arc=bible.arc.model_dump(),
                 episode_count=bible.episode_count,
+                language=bible.language,
             )
             .on_conflict_do_update(
                 index_elements=[models.SeriesBible.show_id],
@@ -77,6 +78,7 @@ class Repo:
                     "concept": bible.concept.model_dump(),
                     "arc": bible.arc.model_dump(),
                     "episode_count": bible.episode_count,
+                    "language": bible.language,
                 },
             )
         )
@@ -108,6 +110,7 @@ class Repo:
             world_rules=[WorldRule(title=w.title, detail=w.detail) for w in rules],
             arc=StoryArc.model_validate(row.arc),
             episode_count=row.episode_count,
+            language=getattr(row, "language", "en") or "en",
         )
 
     async def recent_summaries(self, show_id: str, before_number: int, count: int = 2) -> list[str]:

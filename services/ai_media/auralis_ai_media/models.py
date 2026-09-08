@@ -82,6 +82,7 @@ class SeriesBible(Base):
     concept: Mapped[dict] = mapped_column(JSONB)
     arc: Mapped[dict] = mapped_column(JSONB)
     episode_count: Mapped[int] = mapped_column(Integer, default=8)
+    language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
