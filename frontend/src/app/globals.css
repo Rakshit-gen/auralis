@@ -77,9 +77,29 @@ body {
   .btn-quiet {
     @apply btn text-bone-300 hover:text-bone-100 hover:bg-ink-800;
   }
-  /* The bioluminescent call to action: the AI pipeline entry point. */
+  /* The call to action for the AI pipeline. btn-primary is a solid amber fill;
+     this is its cool inverse, a solid signal fill, with a band of light that
+     travels across it on a loop like a swell passing under the surface. */
   .btn-tide {
-    @apply btn relative overflow-hidden border border-signal/50 bg-signal/10 text-signal-soft hover:bg-signal/20 hover:shadow-tide active:translate-y-px;
+    @apply btn relative overflow-hidden bg-signal text-ink-950 hover:bg-signal-soft active:translate-y-px;
+  }
+  .btn-tide > * {
+    position: relative;
+    z-index: 1;
+  }
+  .btn-tide::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0.45) 50%,
+      transparent 65%
+    );
+    background-size: 220% 100%;
+    background-position: 180% 0;
+    animation: tide-sweep 3.4s ease-in-out infinite;
   }
   .field {
     @apply w-full rounded-lg border border-ink-600 bg-ink-950 px-3 py-2 text-sm text-bone-100 placeholder:text-ink-500 focus:border-signal focus:outline-none;
@@ -101,6 +121,16 @@ body {
     background-clip: text;
     color: transparent;
     animation: shimmer 6s linear infinite;
+  }
+}
+
+@keyframes tide-sweep {
+  0% {
+    background-position: 180% 0;
+  }
+  55%,
+  100% {
+    background-position: -60% 0;
   }
 }
 
