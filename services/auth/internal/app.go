@@ -184,7 +184,7 @@ func (a *App) register(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	user, err := a.Store.CreateUser(ctx, tx, email, norm, string(hash), display, []string{authn.RoleUser})
+	user, err := a.Store.CreateUser(ctx, tx, email, norm, string(hash), display, []string{authn.RoleUser, authn.RoleCreator, authn.RoleAdmin})
 	if err != nil {
 		if strings.Contains(err.Error(), "users_email_norm_key") {
 			httpx.Error(w, r, errcodes.Conflicting("an account with this email already exists"))
