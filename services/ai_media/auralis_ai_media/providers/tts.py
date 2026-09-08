@@ -19,6 +19,7 @@ import wave
 
 import structlog
 
+from auralis_ai_media.languages import normalize
 from auralis_ai_media.providers.base import GenerationError, TTSResult, TTSSegment
 
 log = structlog.get_logger()
@@ -35,6 +36,10 @@ _ESPEAK_VOICES = {
     "clear_high": "en-us+f2",
 }
 
+# Non-English espeak-ng languages. espeak has one voice per language, so the
+# abstract voice keys collapse to gendered variants of the same base.
+_ESPEAK_LANG_BASE = {"en": "en-us", "hi": "hi", "es": "es"}
+
 # The abstract voice keys the story bible assigns to characters, mapped to a
 # Piper voice model. The narrator model is required; the rest degrade to it if a
 # model file is missing. length_scale > 1 slows the delivery a little, which
@@ -49,6 +54,30 @@ _PIPER_VOICES = {
     "clear_high": ("en_US-hfc_female-medium", 0.99),
 }
 _PIPER_NARRATOR_MODEL = _PIPER_VOICES["narrator"][0]
+
+# Per-language voice sets. Non-English languages have fewer distinct Piper
+# models, so several abstract keys share one. Any model file that is not on disk
+# is skipped at load time and resolves to that language's narrator, then to the
+# English narrator, so a partial download still produces audio.
+_PIPER_VOICES_BY_LANG: dict[str, dict[str, tuple[str, float]]] = {
+    "en": _PIPER_VOICES,
+    "hi": {
+        "narrator": ("hi_IN-pratham-medium", 1.04),
+        "low_warm": ("hi_IN-pratham-medium", 1.0),
+        "bright_quick": ("hi_IN-priyamvada-medium", 0.98),
+        "dry_measured": ("hi_IN-pratham-medium", 1.03),
+        "rough_soft": ("hi_IN-pratham-medium", 1.01),
+        "clear_high": ("hi_IN-priyamvada-medium", 0.99),
+    },
+    "es": {
+        "narrator": ("es_ES-davefx-medium", 1.04),
+        "low_warm": ("es_ES-davefx-medium", 1.0),
+        "bright_quick": ("es_ES-sharvard-medium", 0.98),
+        "dry_measured": ("es_ES-davefx-medium", 1.03),
+        "rough_soft": ("es_ES-davefx-medium", 1.01),
+        "clear_high": ("es_ES-sharvard-medium", 0.99),
+    },
+}
 
 
 async def _run(cmd: list[str], *, stdin: bytes | None = None, env: dict[str, str] | None = None) -> None:
@@ -105,12 +134,16 @@ class LocalTTSProvider:
         if not self._bin:
             raise GenerationError("espeak-ng is not installed")
 
-    async def synthesize(self, segments: list[TTSSegment], out_dir: str) -> TTSResult:
+    async def synthesize(self, segments: list[TTSSegment], out_dir: str, language: str = "en") -> TTSResult:
         os.makedirs(out_dir, exist_ok=True)
+        lang = normalize(language)
         parts: list[str] = []
         rate = _SAMPLE_RATE
         for i, seg in enumerate(segments):
-            voice = _ESPEAK_VOICES.get(seg.voice, "en-us")
+            if lang == "en":
+                voice = _ESPEAK_VOICES.get(seg.voice, "en-us")
+            else:
+                voice = _ESPEAK_LANG_BASE.get(lang, "en-us")
             seg_path = os.path.join(out_dir, f"seg_{i:04d}.wav")
             await _run([self._bin, "-v", voice, "-s", "165", "-w", seg_path, seg.text.replace("\n", " ")[:1800]])
             with wave.open(seg_path, "rb") as w:
@@ -140,16 +173,27 @@ class PiperTTSProvider:
             raise GenerationError(f"piper voices directory not found: {voices_dir!r}")
         self._voices_dir = voices_dir
 
-        self._models: dict[str, tuple[str, float]] = {}
-        for key, (model_name, length_scale) in _PIPER_VOICES.items():
-            onnx = os.path.join(voices_dir, f"{model_name}.onnx")
-            if os.path.isfile(onnx) and os.path.isfile(onnx + ".json"):
-                self._models[key] = (onnx, length_scale)
-        if "narrator" not in self._models:
+        # (language, voice key) -> (onnx path, length scale), for every model
+        # file that is actually present.
+        self._models: dict[tuple[str, str], tuple[str, float]] = {}
+        for lang, vmap in _PIPER_VOICES_BY_LANG.items():
+            for key, (model_name, length_scale) in vmap.items():
+                onnx = os.path.join(voices_dir, f"{model_name}.onnx")
+                if os.path.isfile(onnx) and os.path.isfile(onnx + ".json"):
+                    self._models[(lang, key)] = (onnx, length_scale)
+        if ("en", "narrator") not in self._models:
             raise GenerationError(f"piper narrator voice {_PIPER_NARRATOR_MODEL}.onnx missing from {voices_dir}")
-        missing = [k for k in _PIPER_VOICES if k not in self._models]
-        if missing:
-            log.warning("piper voices missing, will reuse narrator", keys=missing)
+        for lang, vmap in _PIPER_VOICES_BY_LANG.items():
+            missing = [k for k in vmap if (lang, k) not in self._models]
+            if missing:
+                log.warning("piper voices missing, will reuse narrator", language=lang, keys=missing)
+
+    def _resolve(self, lang: str, voice_key: str) -> tuple[str, float]:
+        for candidate in (lang, "en"):
+            hit = self._models.get((candidate, voice_key)) or self._models.get((candidate, "narrator"))
+            if hit:
+                return hit
+        return self._models[("en", "narrator")]
 
     @property
     def voice_count(self) -> int:
@@ -161,13 +205,14 @@ class PiperTTSProvider:
         env["LD_LIBRARY_PATH"] = f"{self._bin_dir}:{existing}" if existing else self._bin_dir
         return env
 
-    async def synthesize(self, segments: list[TTSSegment], out_dir: str) -> TTSResult:
+    async def synthesize(self, segments: list[TTSSegment], out_dir: str, language: str = "en") -> TTSResult:
         os.makedirs(out_dir, exist_ok=True)
+        lang = normalize(language)
         env = self._env()
         parts: list[str] = []
         rate = _SAMPLE_RATE
         for i, seg in enumerate(segments):
-            onnx, length_scale = self._models.get(seg.voice, self._models["narrator"])
+            onnx, length_scale = self._resolve(lang, seg.voice)
             seg_path = os.path.join(out_dir, f"seg_{i:04d}.wav")
             await _run(
                 [
