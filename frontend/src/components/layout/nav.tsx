@@ -28,7 +28,7 @@ export function Nav() {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-ink-800 bg-ink-950/85 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-ink-800 bg-ink-950/95 backdrop-blur">
       <div className="container-page flex h-16 items-center gap-4">
         <Link href={user ? "/home" : "/"} className="group flex items-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal">
           <Logo markClassName="h-7 w-7 transition-transform duration-500 group-hover:-rotate-6" />
