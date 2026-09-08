@@ -17,12 +17,12 @@ def main() -> None:
     arg = sys.argv[1] if len(sys.argv) > 1 else "api"
 
     if arg == "migrate":
-        raise SystemExit(subprocess.call(["alembic", "upgrade", "head"]))
+        raise SystemExit(subprocess.call([sys.executable, "-m", "alembic", "upgrade", "head"]))
 
     # API and worker both run migrations first unless told not to. Alembic's
     # version table makes this idempotent and safe with concurrent starts.
     if os.environ.get("SKIP_MIGRATE", "").lower() not in ("1", "true", "yes"):
-        rc = subprocess.call(["alembic", "upgrade", "head"])
+        rc = subprocess.call([sys.executable, "-m", "alembic", "upgrade", "head"])
         if rc != 0:
             raise SystemExit(rc)
 

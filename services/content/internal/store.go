@@ -263,6 +263,14 @@ func (s *Store) showBy(ctx context.Context, cond string, arg any) (Show, error) 
 
 // CreateShow inserts a draft show.
 func (s *Store) CreateShow(ctx context.Context, sh Show) (Show, error) {
+	// pgx sends a nil slice as SQL NULL, which would violate the NOT NULL on
+	// these array columns and skip their defaults.
+	if sh.GenreIDs == nil {
+		sh.GenreIDs = []string{}
+	}
+	if sh.Tags == nil {
+		sh.Tags = []string{}
+	}
 	return scanShow(s.pool.QueryRow(ctx,
 		`WITH ins AS (
 			INSERT INTO shows (creator_id, title, slug, synopsis, description, language_code,

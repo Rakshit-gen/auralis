@@ -55,7 +55,12 @@ class GenerationJob(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    events: Mapped[list[JobEvent]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    events: Mapped[list[JobEvent]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="JobEvent.id",
+    )
 
 
 class JobEvent(Base):

@@ -51,10 +51,13 @@ def main() -> None:
         sys.exit(1)
     a_show = shows["shows"][0]
 
-    # 3. Search
-    q = a_show["title"].split()[0]
+    # 3. Search: pick the most distinctive word from a title (avoids stopwords
+    # like "the", which Postgres full-text search drops).
+    stop = {"the", "a", "an", "of", "and", "from", "to", "at"}
+    words = [w.strip(",.:") for w in a_show["title"].lower().split() if w not in stop]
+    q = max(words, key=len) if words else a_show["title"]
     search = http.get("/api/catalog/search", params={"q": q}).json()
-    check("search finds a show", search.get("total", 0) >= 1, str(search)[:120])
+    check(f"search finds a show for {q!r}", search.get("total", 0) >= 1, str(search)[:120])
 
     # 4. Register a fresh listener
     email = f"e2e-{uuid.uuid4().hex[:10]}@auralis.local"
@@ -138,8 +141,10 @@ def main() -> None:
         done = False
         for _ in range(90):
             j = http.get(f"/api/generate/jobs/{job_id}", headers=h).json()
-            if j["status"] in ("completed", "failed"):
+            if j.get("status") in ("completed", "failed"):
                 done = j["status"] == "completed"
+                if not done:
+                    print(f"       job error: {j.get('error')}")
                 break
             time.sleep(2)
         check("AI series job completes", done, "job did not complete in 3 minutes")

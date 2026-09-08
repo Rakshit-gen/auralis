@@ -121,6 +121,12 @@ def die(msg: str) -> None:
     sys.exit(1)
 
 
+def expect(r, what: str) -> None:
+    """Fail loudly on an unexpected response instead of leaving a half-seeded catalog."""
+    if r.status_code >= 300:
+        die(f"{what}: {r.status_code} {r.text[:200]}")
+
+
 class Client:
     def __init__(self, base: str):
         self.http = httpx.Client(base_url=base, timeout=30.0)
@@ -145,17 +151,29 @@ class Client:
         self.token = body["tokens"]["access_token"]
         return body
 
+    def _send(self, method: str, path: str, **kw):
+        # The gateway rate-limits per caller (fixed one-minute window). A bulk
+        # seed run will hit that ceiling; back off and retry rather than lose
+        # writes silently.
+        for attempt in range(8):
+            r = self.http.request(method, path, headers=self.auth_headers(), **kw)
+            if r.status_code not in (429, 502, 503):
+                return r
+            delay = float(r.headers.get("Retry-After", "1")) + 0.5 * attempt + RNG.random()
+            time.sleep(delay)
+        return r
+
     def get(self, path: str, **kw):
-        return self.http.get(path, headers=self.auth_headers(), **kw)
+        return self._send("GET", path, **kw)
 
     def post(self, path: str, json=None):
-        return self.http.post(path, headers=self.auth_headers(), json=json)
+        return self._send("POST", path, json=json)
 
     def put(self, path: str, json=None):
-        return self.http.put(path, headers=self.auth_headers(), json=json)
+        return self._send("PUT", path, json=json)
 
     def patch(self, path: str, json=None):
-        return self.http.patch(path, headers=self.auth_headers(), json=json)
+        return self._send("PATCH", path, json=json)
 
 
 def wait_for_gateway() -> None:
@@ -252,14 +270,18 @@ def main() -> None:
                 },
             }).raise_for_status()
 
-            c.post(f"/api/content/episodes/{ep_id}/submit")
-            admin.post(f"/api/content/admin/review/episode/{ep_id}", json={"action": "approve"})
-            admin.post(f"/api/content/admin/review/episode/{ep_id}", json={"action": "publish"})
+            expect(c.post(f"/api/content/episodes/{ep_id}/submit"), f"submit episode {n} of {title}")
+            expect(admin.post(f"/api/content/admin/review/episode/{ep_id}", json={"action": "approve"}),
+                   f"approve episode {n} of {title}")
+            expect(admin.post(f"/api/content/admin/review/episode/{ep_id}", json={"action": "publish"}),
+                   f"publish episode {n} of {title}")
             published_episode_ids.append((show_id, ep_id))
 
-        c.post(f"/api/content/shows/{show_id}/submit")
-        admin.post(f"/api/content/admin/review/show/{show_id}", json={"action": "approve"})
-        admin.post(f"/api/content/admin/review/show/{show_id}", json={"action": "publish"})
+        expect(c.post(f"/api/content/shows/{show_id}/submit"), f"submit show {title}")
+        expect(admin.post(f"/api/content/admin/review/show/{show_id}", json={"action": "approve"}),
+               f"approve show {title}")
+        expect(admin.post(f"/api/content/admin/review/show/{show_id}", json={"action": "publish"}),
+               f"publish show {title}")
         published_show_ids.append(show_id)
         print(f"  published {title} ({episode_count} episodes)")
 

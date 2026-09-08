@@ -150,14 +150,41 @@ func (s *Store) Preferences(ctx context.Context, userID string) (Preferences, er
 }
 
 func (s *Store) UpdatePreferences(ctx context.Context, p Preferences) (Preferences, error) {
-	err := s.pool.QueryRow(ctx,
-		`UPDATE preferences SET genre_slugs = $2, language_codes = $3, autoplay = $4,
-			playback_speed = $5, explicit_ok = $6, email_updates = $7, updated_at = now()
-		 WHERE user_id = $1
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Preferences{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	// The caller is authenticated, but the profile row is created asynchronously
+	// by the user.registered consumer. A client that sets preferences right after
+	// signup can win that race, so ensure a shell profile exists first; the
+	// consumer's EnsureProfile fills in display_name and email when the event
+	// lands (it does ON CONFLICT DO UPDATE), so the empty shell is never durable.
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO profiles (user_id, display_name) VALUES ($1, '')
+		 ON CONFLICT (user_id) DO NOTHING`, p.UserID); err != nil {
+		return Preferences{}, err
+	}
+	err = tx.QueryRow(ctx,
+		`INSERT INTO preferences (user_id, genre_slugs, language_codes, autoplay,
+			playback_speed, explicit_ok, email_updates)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 ON CONFLICT (user_id) DO UPDATE SET
+			genre_slugs = EXCLUDED.genre_slugs, language_codes = EXCLUDED.language_codes,
+			autoplay = EXCLUDED.autoplay, playback_speed = EXCLUDED.playback_speed,
+			explicit_ok = EXCLUDED.explicit_ok, email_updates = EXCLUDED.email_updates,
+			updated_at = now()
 		 RETURNING user_id, genre_slugs, language_codes, autoplay, playback_speed, explicit_ok, email_updates`,
 		p.UserID, p.GenreSlugs, p.LanguageCodes, p.Autoplay, p.PlaybackSpeed, p.ExplicitOK, p.EmailUpdates).
 		Scan(&p.UserID, &p.GenreSlugs, &p.LanguageCodes, &p.Autoplay, &p.PlaybackSpeed, &p.ExplicitOK, &p.EmailUpdates)
-	return p, err
+	if err != nil {
+		return Preferences{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Preferences{}, err
+	}
+	return p, nil
 }
 
 // --- likes / bookmarks / follows ---
