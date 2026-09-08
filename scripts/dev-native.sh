@@ -77,7 +77,9 @@ cmd_up() {
   done
 
   echo "starting services..."
-  AUTH_DATABASE_URL="$(pg auth)" AUTH_HTTP_ADDR=":8081" start auth "$RUN/bin/auth"
+  AUTH_DATABASE_URL="$(pg auth)" AUTH_HTTP_ADDR=":8081" \
+    AUTH_RATE_LIMIT_RPM="${AUTH_RATE_LIMIT_RPM:-120}" AUTH_RATE_LIMIT_BURST="${AUTH_RATE_LIMIT_BURST:-40}" \
+    start auth "$RUN/bin/auth"
   USER_DATABASE_URL="$(pg users)" USER_HTTP_ADDR=":8083" start user "$RUN/bin/user"
   CONTENT_DATABASE_URL="$(pg content)" CONTENT_HTTP_ADDR=":8082" start content "$RUN/bin/content"
   ANALYTICS_DATABASE_URL="$(pg analytics)" ANALYTICS_HTTP_ADDR=":8087" start analytics "$RUN/bin/analytics"

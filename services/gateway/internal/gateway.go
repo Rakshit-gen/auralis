@@ -5,6 +5,7 @@ package internal
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -73,6 +74,20 @@ func New(cfg Config) (*Gateway, error) {
 		backends:       map[string]*Backend{},
 		limiter:        cfg.Limiter,
 	}
+	// One shared transport across all backends. The default transport keeps only
+	// two idle connections per host, which forces a new TCP handshake for almost
+	// every proxied request under load and exhausts local ephemeral ports; a
+	// larger idle pool lets the gateway reuse upstream connections.
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          512,
+		MaxIdleConnsPerHost:   128,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	}
 	for name, base := range cfg.Backends {
 		u, err := url.Parse(base)
 		if err != nil {
@@ -80,6 +95,7 @@ func New(cfg Config) (*Gateway, error) {
 		}
 		b := &Backend{Name: name, URL: base}
 		b.proxy = httputil.NewSingleHostReverseProxy(u)
+		b.proxy.Transport = transport
 		b.proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 			logging.L(r.Context()).Error("backend proxy error", "backend", name, "error", err.Error())
 			errcodes.Write(w, r.Header.Get("X-Auralis-Request-Id"),

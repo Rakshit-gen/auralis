@@ -59,7 +59,10 @@ export default function (data) {
     JSON.stringify({ email, password: "k6-load-password-1", display_name: "k6" }),
     { headers: { "Content-Type": "application/json" } },
   );
-  if (reg.status !== 201) return;
+  if (!check(reg, { "register 201": (r) => r.status === 201 })) {
+    sleep(1); // do not spin the loop if registration is failing
+    return;
+  }
   const token = reg.json("tokens.access_token");
   const authHeaders = { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } };
 
