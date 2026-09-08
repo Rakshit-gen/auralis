@@ -22,9 +22,7 @@ def make_engine(url: str, pool_size: int = 10) -> AsyncEngine:
     # asyncpg does not accept libpq's sslmode query parameter.
     if "sslmode=" in url:
         url = _strip_query_param(url, "sslmode")
-    return create_async_engine(
-        url, pool_size=pool_size, max_overflow=5, pool_pre_ping=True, pool_recycle=1800
-    )
+    return create_async_engine(url, pool_size=pool_size, max_overflow=5, pool_pre_ping=True, pool_recycle=1800)
 
 
 def _strip_query_param(url: str, key: str) -> str:

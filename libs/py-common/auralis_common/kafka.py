@@ -29,9 +29,7 @@ class Producer:
         self._p: AIOKafkaProducer | None = None
 
     async def start(self) -> None:
-        self._p = AIOKafkaProducer(
-            bootstrap_servers=self._brokers, acks="all", enable_idempotence=True
-        )
+        self._p = AIOKafkaProducer(bootstrap_servers=self._brokers, acks="all", enable_idempotence=True)
         await self._p.start()
 
     async def stop(self) -> None:
@@ -110,16 +108,12 @@ class Consumer:
     async def _process(self, msg, handle: Handler, dlq: AIOKafkaProducer) -> None:
         try:
             env = Envelope.from_bytes(msg.value)
-        except Exception as exc:  # noqa: BLE001 - undecodable message
-            log.error(
-                "undecodable message dead-lettered", error=str(exc), topic=msg.topic
-            )
+        except Exception as exc:
+            log.error("undecodable message dead-lettered", error=str(exc), topic=msg.topic)
             await self._dead_letter(dlq, msg, f"envelope_parse_error: {exc}")
             return
 
-        if self._dedupe and await self._dedupe.already_processed(
-            self._group, env.event_id
-        ):
+        if self._dedupe and await self._dedupe.already_processed(self._group, env.event_id):
             log.debug("duplicate event skipped", event_id=env.event_id)
             return
 
@@ -129,7 +123,7 @@ class Consumer:
                 await handle(env)
                 last_exc = None
                 break
-            except Exception as exc:  # noqa: BLE001 - handler failures are retried
+            except Exception as exc:
                 last_exc = exc
                 log.warning(
                     "handler failed",

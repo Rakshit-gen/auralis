@@ -49,19 +49,10 @@ def create_app(
     async def _context(request: Request, call_next):
         start = time.perf_counter()
         request_id = (
-            request.headers.get("x-auralis-request-id")
-            or request.headers.get("x-request-id")
-            or str(uuid.uuid4())
+            request.headers.get("x-auralis-request-id") or request.headers.get("x-request-id") or str(uuid.uuid4())
         )
         corr = request.headers.get("x-correlation-id") or request_id
-        route = (
-            request.scope.get("route").path
-            if request.scope.get("route")
-            else request.url.path
-        )
-        bind_request_context(
-            request_id=request_id, correlation_id=corr, endpoint=request.url.path
-        )
+        bind_request_context(request_id=request_id, correlation_id=corr, endpoint=request.url.path)
         try:
             response: Response = await call_next(request)
         except Exception:
@@ -78,11 +69,7 @@ def create_app(
         response.headers["x-content-type-options"] = "nosniff"
         response.headers["referrer-policy"] = "no-referrer"
         dur = time.perf_counter() - start
-        matched = (
-            request.scope.get("route").path
-            if request.scope.get("route")
-            else request.url.path
-        )
+        matched = request.scope.get("route").path if request.scope.get("route") else request.url.path
         observe_http(service, request.method, matched, response.status_code, dur)
         log.info(
             "request",
@@ -105,7 +92,7 @@ def create_app(
             try:
                 await check()
                 checks[name] = "ok"
-            except Exception as exc:  # noqa: BLE001 - surface as not-ready
+            except Exception as exc:
                 checks[name] = str(exc)
                 ok = False
         response.status_code = 200 if ok else 503

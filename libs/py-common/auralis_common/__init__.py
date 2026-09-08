@@ -15,19 +15,19 @@ from auralis_common.settings import BaseServiceSettings
 from auralis_common.svcclient import ServiceClient
 
 __all__ = [
-    "Envelope",
-    "new_envelope",
     "ApiError",
+    "BaseServiceSettings",
+    "Envelope",
+    "Identity",
+    "ServiceClient",
+    "bind_request_context",
+    "create_app",
     "error_body",
     "install_exception_handlers",
-    "Identity",
+    "new_envelope",
     "optional_identity",
     "require_identity",
     "require_roles",
     "require_service_token",
     "setup_logging",
-    "bind_request_context",
-    "create_app",
-    "BaseServiceSettings",
-    "ServiceClient",
 ]

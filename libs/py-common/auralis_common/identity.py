@@ -34,9 +34,7 @@ class Identity:
 
 
 def _sign(secret: str, user: str, roles: str, request_id: str) -> str:
-    mac = hmac.new(
-        secret.encode(), f"{user}\n{roles}\n{request_id}".encode(), hashlib.sha256
-    )
+    mac = hmac.new(secret.encode(), f"{user}\n{roles}\n{request_id}".encode(), hashlib.sha256)
     return mac.hexdigest()
 
 

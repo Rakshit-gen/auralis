@@ -41,14 +41,10 @@ FFMPEG_DURATION = Histogram(
     ["service", "operation"],
     buckets=(0.1, 0.5, 1, 5, 15, 30, 60, 120, 300),
 )
-EVENTS = Counter(
-    "auralis_events_total", "Domain counters.", ["service", "name", "outcome"]
-)
+EVENTS = Counter("auralis_events_total", "Domain counters.", ["service", "name", "outcome"])
 
 
-def observe_http(
-    service: str, method: str, route: str, status: int, seconds: float
-) -> None:
+def observe_http(service: str, method: str, route: str, status: int, seconds: float) -> None:
     cls = f"{status // 100}xx"
     HTTP_REQUESTS.labels(service, method, route, cls).inc()
     HTTP_DURATION.labels(service, method, route).observe(seconds)
@@ -78,10 +74,6 @@ def setup_tracing(service: str, version: str, endpoint: str) -> None:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-    provider = TracerProvider(
-        resource=Resource.create({"service.name": service, "service.version": version})
-    )
-    provider.add_span_processor(
-        BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{endpoint}/v1/traces"))
-    )
+    provider = TracerProvider(resource=Resource.create({"service.name": service, "service.version": version}))
+    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{endpoint}/v1/traces")))
     trace.set_tracer_provider(provider)

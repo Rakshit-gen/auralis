@@ -13,9 +13,7 @@ log = structlog.get_logger()
 
 
 class ServiceClient:
-    def __init__(
-        self, base_url: str, service_token: str, caller: str, timeout: float = 8.0
-    ):
+    def __init__(self, base_url: str, service_token: str, caller: str, timeout: float = 8.0):
         self._base = base_url.rstrip("/")
         self._token = service_token
         self._caller = caller
@@ -33,19 +31,13 @@ class ServiceClient:
     async def get(self, path: str, correlation_id: str | None = None) -> Any:
         return await self._request("GET", path, None, correlation_id)
 
-    async def post(
-        self, path: str, body: dict, correlation_id: str | None = None
-    ) -> Any:
+    async def post(self, path: str, body: dict, correlation_id: str | None = None) -> Any:
         return await self._request("POST", path, body, correlation_id)
 
-    async def patch(
-        self, path: str, body: dict, correlation_id: str | None = None
-    ) -> Any:
+    async def patch(self, path: str, body: dict, correlation_id: str | None = None) -> Any:
         return await self._request("PATCH", path, body, correlation_id)
 
-    async def _request(
-        self, method: str, path: str, body: dict | None, correlation_id: str | None
-    ) -> Any:
+    async def _request(self, method: str, path: str, body: dict | None, correlation_id: str | None) -> Any:
         try:
             resp = await self._client.request(
                 method,

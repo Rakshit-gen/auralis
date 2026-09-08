@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Envelope(BaseModel):
@@ -29,7 +29,7 @@ class Envelope(BaseModel):
         return self.model_dump_json().encode("utf-8")
 
     @classmethod
-    def from_bytes(cls, raw: bytes) -> "Envelope":
+    def from_bytes(cls, raw: bytes) -> Envelope:
         return cls.model_validate_json(raw)
 
 

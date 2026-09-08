@@ -23,9 +23,7 @@ log = structlog.get_logger()
 class ApiError(Exception):
     """An application error with an HTTP status and a stable machine code."""
 
-    def __init__(
-        self, status: int, code: str, message: str, fields: dict[str, str] | None = None
-    ):
+    def __init__(self, status: int, code: str, message: str, fields: dict[str, str] | None = None):
         super().__init__(message)
         self.status = status
         self.code = code
@@ -33,37 +31,35 @@ class ApiError(Exception):
         self.fields = fields
 
     @classmethod
-    def bad_request(cls, message: str, **fields: str) -> "ApiError":
+    def bad_request(cls, message: str, **fields: str) -> ApiError:
         return cls(400, "request.validation_failed", message, fields or None)
 
     @classmethod
-    def unauthorized(cls, message: str = "authentication required") -> "ApiError":
+    def unauthorized(cls, message: str = "authentication required") -> ApiError:
         return cls(401, "auth.unauthorized", message)
 
     @classmethod
-    def forbidden(cls, message: str = "insufficient role") -> "ApiError":
+    def forbidden(cls, message: str = "insufficient role") -> ApiError:
         return cls(403, "auth.forbidden", message)
 
     @classmethod
-    def not_found(cls, message: str = "resource not found") -> "ApiError":
+    def not_found(cls, message: str = "resource not found") -> ApiError:
         return cls(404, "request.not_found", message)
 
     @classmethod
-    def conflict(cls, message: str) -> "ApiError":
+    def conflict(cls, message: str) -> ApiError:
         return cls(409, "request.conflict", message)
 
     @classmethod
-    def unavailable(cls, message: str) -> "ApiError":
+    def unavailable(cls, message: str) -> ApiError:
         return cls(502, "dependency.unavailable", message)
 
     @classmethod
-    def internal(cls, message: str = "an unexpected error occurred") -> "ApiError":
+    def internal(cls, message: str = "an unexpected error occurred") -> ApiError:
         return cls(500, "internal.unexpected", message)
 
 
-def error_body(
-    code: str, message: str, request_id: str, fields: dict[str, Any] | None = None
-) -> dict:
+def error_body(code: str, message: str, request_id: str, fields: dict[str, Any] | None = None) -> dict:
     body: dict[str, Any] = {"code": code, "message": message, "request_id": request_id}
     if fields:
         body["fields"] = fields
@@ -71,11 +67,7 @@ def error_body(
 
 
 def _request_id(request: Request) -> str:
-    return (
-        request.headers.get("x-auralis-request-id")
-        or request.headers.get("x-request-id")
-        or ""
-    )
+    return request.headers.get("x-auralis-request-id") or request.headers.get("x-request-id") or ""
 
 
 def install_exception_handlers(app: FastAPI) -> None:
@@ -87,12 +79,8 @@ def install_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def _validation(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
-        fields = {
-            ".".join(str(p) for p in e["loc"][1:]): e["msg"] for e in exc.errors()
-        }
+    async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
+        fields = {".".join(str(p) for p in e["loc"][1:]): e["msg"] for e in exc.errors()}
         return JSONResponse(
             status_code=400,
             content=error_body(
@@ -117,9 +105,7 @@ def install_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-        log.error(
-            "unhandled exception", path=request.url.path, error=str(exc), exc_info=exc
-        )
+        log.error("unhandled exception", path=request.url.path, error=str(exc), exc_info=exc)
         return JSONResponse(
             status_code=500,
             content=error_body(
