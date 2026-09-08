@@ -52,8 +52,8 @@ func (a *App) listShows(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) getShow(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	sh, err := a.Store.ShowBySlug(r.Context(), slug)
+	key := chi.URLParam(r, "slug")
+	sh, err := a.Store.ShowByIDOrSlug(r.Context(), key)
 	if err != nil {
 		httpx.Error(w, r, errcodes.Missing("show not found"))
 		return

@@ -247,6 +247,12 @@ func (s *Store) ShowBySlug(ctx context.Context, slug string) (Show, error) {
 	return s.showBy(ctx, "s.slug = $1", slug)
 }
 
+// ShowByIDOrSlug resolves a show by either its UUID or its slug. Deep links
+// into the catalog carry whichever identifier the caller had on hand.
+func (s *Store) ShowByIDOrSlug(ctx context.Context, key string) (Show, error) {
+	return s.showBy(ctx, "(s.slug = $1 OR s.id::text = $1)", key)
+}
+
 func (s *Store) showBy(ctx context.Context, cond string, arg any) (Show, error) {
 	sh, err := scanShow(s.pool.QueryRow(ctx,
 		`SELECT `+showColumns+` FROM shows s JOIN creators c ON c.id = s.creator_id WHERE `+cond, arg))
