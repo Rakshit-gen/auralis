@@ -40,3 +40,6 @@ out/
 /data/
 /tmp/
 *.log
+
+# native dev stack runtime state
+.native/
