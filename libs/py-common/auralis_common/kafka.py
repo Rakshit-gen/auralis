@@ -4,15 +4,62 @@ idempotency, bounded retries, and dead-lettering."""
 from __future__ import annotations
 
 import asyncio
+import os
+import ssl
 from collections.abc import Awaitable, Callable
 from typing import Protocol
 
 import structlog
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka.helpers import create_ssl_context
 
 from auralis_common.envelope import Envelope
 
 log = structlog.get_logger()
+
+
+def _env_bool(key: str) -> bool:
+    return os.getenv(key, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def security_kwargs() -> dict:
+    """Transport security for the aiokafka clients, read from the environment.
+
+    Local and CI brokers speak PLAINTEXT and this returns ``{}``. Managed
+    brokers set ``KAFKA_SASL_MECHANISM`` (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512)
+    plus ``KAFKA_SASL_USERNAME`` / ``KAFKA_SASL_PASSWORD``; TLS is implied
+    whenever a mechanism is set, or forced with ``KAFKA_TLS_ENABLED``.
+    ``KAFKA_TLS_SKIP_VERIFY`` disables certificate checks (test only).
+    """
+    mechanism = os.getenv("KAFKA_SASL_MECHANISM", "").strip().upper()
+    tls = _env_bool("KAFKA_TLS_ENABLED") or bool(mechanism)
+    if not mechanism and not tls:
+        return {}
+
+    ssl_context: ssl.SSLContext | None = None
+    if tls:
+        ssl_context = create_ssl_context()
+        if _env_bool("KAFKA_TLS_SKIP_VERIFY"):
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+    if not mechanism:
+        return {"security_protocol": "SSL", "ssl_context": ssl_context}
+
+    username = os.getenv("KAFKA_SASL_USERNAME", "")
+    password = os.getenv("KAFKA_SASL_PASSWORD", "")
+    if not username or not password:
+        raise RuntimeError(
+            "KAFKA_SASL_MECHANISM is set but KAFKA_SASL_USERNAME/PASSWORD are empty"
+        )
+    return {
+        "security_protocol": "SASL_SSL" if tls else "SASL_PLAINTEXT",
+        "sasl_mechanism": mechanism,
+        "sasl_plain_username": username,
+        "sasl_plain_password": password,
+        "ssl_context": ssl_context,
+    }
+
 
 TOPIC_USER = "auralis.user.events"
 TOPIC_CONTENT = "auralis.content.events"
@@ -29,7 +76,12 @@ class Producer:
         self._p: AIOKafkaProducer | None = None
 
     async def start(self) -> None:
-        self._p = AIOKafkaProducer(bootstrap_servers=self._brokers, acks="all", enable_idempotence=True)
+        self._p = AIOKafkaProducer(
+            bootstrap_servers=self._brokers,
+            acks="all",
+            enable_idempotence=True,
+            **security_kwargs(),
+        )
         await self._p.start()
 
     async def stop(self) -> None:
@@ -83,14 +135,16 @@ class Consumer:
         self._stop.set()
 
     async def run(self, handle: Handler) -> None:
+        security = security_kwargs()
         consumer = AIOKafkaConsumer(
             *self._topics,
             bootstrap_servers=self._brokers,
             group_id=self._group,
             enable_auto_commit=False,
             auto_offset_reset="earliest",
+            **security,
         )
-        dlq = AIOKafkaProducer(bootstrap_servers=self._brokers, acks="all")
+        dlq = AIOKafkaProducer(bootstrap_servers=self._brokers, acks="all", **security)
         await consumer.start()
         await dlq.start()
         log.info("consumer started", group=self._group, topics=self._topics)

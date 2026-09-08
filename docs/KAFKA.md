@@ -6,8 +6,29 @@ Kafka is for everything that can be eventually consistent.
 
 Local: `bitnami/kafka:3.9` in KRaft mode, single broker, `NUM_PARTITIONS=3`,
 auto topic creation on. Production: a single-node Redpanda instance (Kafka-API
-compatible, no code changes) or a managed Kafka such as Confluent Cloud. See
-[DEPLOYMENT.md](DEPLOYMENT.md) for why a plain HTTP queue is not a substitute.
+compatible, no code changes) or a managed Kafka such as Redpanda Cloud or
+Confluent Cloud. See [DEPLOYMENT.md](DEPLOYMENT.md) for why a plain HTTP queue
+is not a substitute.
+
+## Transport security
+
+Local and CI brokers speak PLAINTEXT and need no configuration. Managed brokers
+require SASL over TLS. Both the Go (`kafkax`) and Python (`auralis_common.kafka`)
+clients read the same environment variables and apply them to every producer,
+consumer, and dead-letter writer:
+
+| Variable | Values | Notes |
+| --- | --- | --- |
+| `KAFKA_SASL_MECHANISM` | `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512` | empty means PLAINTEXT |
+| `KAFKA_SASL_USERNAME` | broker principal | required when a mechanism is set |
+| `KAFKA_SASL_PASSWORD` | broker secret | required when a mechanism is set |
+| `KAFKA_TLS_ENABLED` | `1`/`true` | implied whenever a mechanism is set |
+| `KAFKA_TLS_SKIP_VERIFY` | `1`/`true` | skips certificate verification, test only |
+
+A mechanism set without credentials is a startup error. Managed brokers also
+disable auto topic creation, so create the topics in
+[Topics](#topics) and their `.dlq` counterparts out of band (`rpk topic create`
+or the provider console) before the services start.
 
 ## Topics
 

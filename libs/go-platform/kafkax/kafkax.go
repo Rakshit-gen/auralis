@@ -55,6 +55,7 @@ func NewProducer(brokerCSV, service string) *Producer {
 			BatchTimeout:           50 * time.Millisecond,
 			WriteTimeout:           10 * time.Second,
 			MaxAttempts:            5,
+			Transport:              transport(), // SASL/TLS when configured, plaintext otherwise
 		},
 	}
 }
@@ -175,12 +176,14 @@ func NewConsumer(cfg ConsumerConfig, seen Seen) *Consumer {
 			MaxBytes:       10 << 20,
 			CommitInterval: 0, // commit explicitly after each message
 			StartOffset:    kafka.FirstOffset,
+			Dialer:         dialer(), // SASL/TLS when configured, plaintext otherwise
 		}),
 		dlq: &kafka.Writer{
 			Addr:                   kafka.TCP(brokers(cfg.BrokerCSV)...),
 			Balancer:               &kafka.Hash{},
 			RequiredAcks:           kafka.RequireAll,
 			AllowAutoTopicCreation: true,
+			Transport:              transport(),
 		},
 	}
 }
@@ -288,7 +291,8 @@ func (c *Consumer) deadLetter(ctx context.Context, m kafka.Message, reason strin
 // EnsureTopics creates the platform topics if they do not exist. Used by the
 // local bootstrap and tests; production brokers are provisioned out of band.
 func EnsureTopics(ctx context.Context, brokerCSV string, partitions, replication int) error {
-	conn, err := kafka.DialContext(ctx, "tcp", brokers(brokerCSV)[0])
+	d := dialer()
+	conn, err := d.DialContext(ctx, "tcp", brokers(brokerCSV)[0])
 	if err != nil {
 		return err
 	}
@@ -297,7 +301,7 @@ func EnsureTopics(ctx context.Context, brokerCSV string, partitions, replication
 	if err != nil {
 		return err
 	}
-	cc, err := kafka.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", controller.Host, controller.Port))
+	cc, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", controller.Host, controller.Port))
 	if err != nil {
 		return err
 	}
