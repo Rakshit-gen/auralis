@@ -170,7 +170,10 @@ scripts/deploy/render.py --only auralis-gateway
 | auralis-recommendation | services/recommendation/Dockerfile | 8086 | web |
 
 On Render every service binds `0.0.0.0:10000` (`<NAME>_HTTP_ADDR` and `PORT`
-are both set to `10000`); Render routes external HTTPS to that port. ai-media
+are both set to `10000`); Render routes external HTTPS to that port. The
+ai-media image also downloads the Piper binary and six voice models at build
+time (about 360 MB), so its first build is slower than the others; `PIPER_BIN`
+and `PIPER_VOICES_DIR` are baked into the image, no Render env needed. ai-media
 runs its generation worker in-process (`AI_MEDIA_RUN_WORKER=true`, the default),
 so no separate worker service is needed. The Kafka consumers in user, playback,
 analytics, recommendation, and ai-media also run in-process (their
@@ -264,16 +267,21 @@ API_BASE=https://auralis-gateway.onrender.com/api \
 `scripts/seed.py` attaches packaged-audio metadata but never produces audio, so
 a freshly seeded episode 404s on playback. `scripts/deploy/media-backfill.py`
 closes that gap: for every published episode it composes an original narration
-from the show and episode metadata, synthesizes it with espeak-ng, packages it
-to the same three-bitrate HLS layout the ai-media worker produces, uploads it
-under the key the episode already points at, and re-attaches the real metadata.
+from the show and episode metadata, synthesizes it with Piper (the same neural
+voices the ai-media worker uses) or espeak-ng, packages it to the same
+three-bitrate HLS layout the ai-media worker produces, uploads it under the key
+the episode already points at, and re-attaches the real metadata.
 
 ```
+scripts/piper-setup.sh                                        # neural voices, once
 .venv/bin/python scripts/deploy/media-backfill.py --dry-run   # plan only
 .venv/bin/python scripts/deploy/media-backfill.py             # up to --target-gb
+.venv/bin/python scripts/deploy/media-backfill.py --force     # re-voice everything
 ```
 
-It needs `ffmpeg`, `ffprobe`, and `espeak-ng` on `PATH`, reads `S3_*` and
+It needs `ffmpeg` and `ffprobe` on `PATH` plus either Piper (run
+`scripts/piper-setup.sh`, which drops the binary and models in `.piper/`) or
+`espeak-ng`. It reads `S3_*` and
 gateway settings from `.env.deploy`, is idempotent (an episode that already has
 a real master playlist is skipped unless `--force`), and stays inside a byte
 budget so the R2 free tier is safe. It runs for a while; `--limit` and

@@ -85,11 +85,29 @@ How those URLs are formed depends on `S3_PUBLIC_BASE_URL`:
 Set `S3_PUBLIC_BASE_URL` on the playback service to the public media domain,
 with no trailing slash.
 
+## Voices
+
+Generated episodes are voiced by **Piper**, a free offline neural TTS. The
+ai-media image bundles the `piper` binary and six medium-quality voice models
+(about 360 MB total), fetched at build time by `scripts/piper-fetch-voices.sh`.
+The pipeline assigns each character an abstract voice key in the story bible
+(`narrator`, `low_warm`, `bright_quick`, `dry_measured`, `rough_soft`,
+`clear_high`); `providers/tts.py` maps each key to one Piper model and a
+`length_scale` that nudges the pace. A key whose model is missing falls back to
+the narrator voice; if the narrator model or the binary is missing entirely the
+service drops to **espeak-ng**, which is intelligible but plainly synthetic.
+
+Selection is by env: `PIPER_VOICES_DIR` (the models directory) and `PIPER_BIN`
+(defaults to `piper` on `PATH`). For local development, `scripts/piper-setup.sh`
+downloads the binary and models into `.piper/` and `scripts/dev-native.sh`
+points the worker at them. The media backfill script
+(`scripts/deploy/media-backfill.py`) uses the same resolution.
+
 ## Requirements
 
 `ffmpeg` and `ffprobe` on `PATH` in the worker image (the compose and Render
-images install them). `espeak-ng` for the local TTS provider. Piper is
-optional and only used if a model file is present.
+images install them). For speech, either the bundled Piper binary and voice
+models, or `espeak-ng` as the fallback.
 
 ## Failure handling
 

@@ -107,9 +107,14 @@ with two implementations each.
 
 ### TTS
 
-- **`LocalTTSProvider`** (default): espeak-ng. Always available, robotic.
-- **`PiperTTSProvider`**: Piper neural voices, used when a Piper model file is
-  present on disk.
+- **`PiperTTSProvider`** (default): Piper neural voices, offline and free. Six
+  voice models map to the abstract voice keys the story bible assigns to
+  characters (`narrator`, `low_warm`, `bright_quick`, `dry_measured`,
+  `rough_soft`, `clear_high`); a missing model falls back to the narrator voice.
+  Selected when `PIPER_VOICES_DIR` holds at least the narrator model and the
+  `piper` binary resolves (`PIPER_BIN` or `PATH`). The service image ships both.
+- **`LocalTTSProvider`**: espeak-ng, the fallback when Piper is not present.
+  Always available, plainly synthetic.
 
 ## Determinism
 

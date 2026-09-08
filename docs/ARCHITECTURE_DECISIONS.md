@@ -75,16 +75,20 @@ for premium content need a separate short clip rather than a byte-range trick.
 
 ## 6. Providers behind interfaces, local-first
 
-**Decision.** `LLMProvider` and `TTSProvider` are interfaces. The default
-implementations are fully local and deterministic (procedural generator,
-espeak-ng). Groq and Piper are optional upgrades selected by env.
+**Decision.** `LLMProvider` and `TTSProvider` are interfaces. Text generation
+defaults to a fully local, deterministic procedural generator; Groq is an
+optional upgrade selected by env. Speech defaults to Piper neural voices, which
+are free and offline and ship in the service image; espeak-ng is the fallback
+when the Piper binary or voice models are absent.
 
 **Why.** The platform has to build, run, seed, test, and demo with zero API
 keys and zero cost. A hosted model is an enhancement, never a dependency. Any
-Groq failure falls back to local mid-job.
+Groq failure falls back to local mid-job. Piper gives listenable narration
+without that trade because it runs on the box; espeak-ng only has to be
+intelligible enough for a CI smoke test or a machine with no models fetched.
 
-**Cost.** The local generator's output is templated fiction, coherent but not
-surprising. Acceptable for a reference platform.
+**Cost.** The local text generator's output is templated fiction, coherent but
+not surprising. The Piper voice models add roughly 360 MB to the ai-media image.
 
 ## 7. Transparent linear recommender
 
