@@ -60,6 +60,8 @@ func (fakeSigner) PresignGet(_ context.Context, key string, _ time.Duration) (st
 	return "https://media.test/" + key + "?sig=stub", nil
 }
 
+func (fakeSigner) PublicURL(string) string { return "" }
+
 func setup(t *testing.T, content, users *httptest.Server) (*httptest.Server, *App, *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()

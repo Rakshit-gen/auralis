@@ -222,7 +222,7 @@ def s3_env(d: dict[str, str]) -> dict[str, str]:
     for k in ("S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY"):
         if not d.get(k):
             sys.exit(f"{k} is empty in .env.deploy")
-    return {
+    env = {
         "S3_ENDPOINT": d["S3_ENDPOINT"],
         "S3_ACCESS_KEY": d["S3_ACCESS_KEY"],
         "S3_SECRET_KEY": d["S3_SECRET_KEY"],
@@ -230,6 +230,12 @@ def s3_env(d: dict[str, str]) -> dict[str, str]:
         "S3_REGION": d.get("S3_REGION", "auto"),
         "S3_USE_SSL": d.get("S3_USE_SSL", "true"),
     }
+    # Public base URL for the media bucket (an R2 public domain). playback serves
+    # HLS from here so the player's relative child requests are reachable without
+    # a signature; when unset it falls back to presigned URLs.
+    if d.get("S3_PUBLIC_BASE_URL"):
+        env["S3_PUBLIC_BASE_URL"] = d["S3_PUBLIC_BASE_URL"].rstrip("/")
+    return env
 
 
 def compute_env(name: str, spec: dict, d: dict[str, str], urls: dict[str, str]) -> dict[str, str]:

@@ -39,10 +39,18 @@ func domainEventType(clientType string) string {
 	return "playback." + strings.ToLower(clientType)
 }
 
-// MediaSigner produces time-limited download URLs for object keys.
-// objectstore.Client satisfies it; tests provide a fake.
+// MediaSigner produces download URLs for object keys. objectstore.Client
+// satisfies it; tests provide a fake.
+//
+// PublicURL returns a stable, unauthenticated URL when the bucket is fronted by
+// a public base URL (an R2 public domain or a CDN), and "" otherwise. HLS is
+// served this way in production: the player resolves the child playlists and
+// every .ts segment relative to the master URL with no query string, so a
+// presigned master alone leaves those requests unsigned. A public base URL
+// makes the whole tree reachable; presigned URLs are the local-MinIO fallback.
 type MediaSigner interface {
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error)
+	PublicURL(key string) string
 }
 
 // App holds the playback service dependencies.
@@ -56,6 +64,15 @@ type App struct {
 
 func NewApp(store *Store, objects MediaSigner, content, users *svcclient.Client) *App {
 	return &App{Store: store, Objects: objects, Content: content, Users: users, SignedTTL: 2 * time.Hour}
+}
+
+// mediaURL returns a public URL for key when the bucket has a public base URL
+// configured, and a presigned URL otherwise.
+func (a *App) mediaURL(ctx context.Context, key string) (string, error) {
+	if u := a.Objects.PublicURL(key); u != "" {
+		return u, nil
+	}
+	return a.Objects.PresignGet(ctx, key, a.SignedTTL)
 }
 
 // Routes registers playback endpoints. All require an authenticated caller.
@@ -122,14 +139,14 @@ func (a *App) authorize(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	master, err := a.Objects.PresignGet(ctx, meta.HLSMasterKey, a.SignedTTL)
+	master, err := a.mediaURL(ctx, meta.HLSMasterKey)
 	if err != nil {
 		httpx.Error(w, r, errcodes.New(http.StatusBadGateway, errcodes.Unavailable, "media storage unavailable"))
 		return
 	}
 	variants := make([]map[string]any, 0, len(meta.AudioVariants))
 	for _, v := range meta.AudioVariants {
-		signed, err := a.Objects.PresignGet(ctx, v.Key, a.SignedTTL)
+		signed, err := a.mediaURL(ctx, v.Key)
 		if err != nil {
 			continue
 		}
