@@ -4,8 +4,10 @@
 The catalogue seed (scripts/seed.py) attaches fictional packaged-audio metadata
 but never produces audio, so seeded episodes 404 on playback. This script closes
 that gap: for every published episode it composes an original narration from the
-show and episode metadata, synthesizes it with espeak-ng, packages it to the
-same three-bitrate HLS layout the ai-media worker produces, uploads it to the
+show and episode metadata, synthesizes it with Piper (the same neural voices the
+ai-media worker uses, when PIPER_BIN and PIPER_VOICES_DIR resolve) or else
+espeak-ng, packages it to the same three-bitrate HLS layout the ai-media worker
+produces, uploads it to the
 media bucket under the key the episode already points at
 (hls/<show_id>/<episode_id>/...), and re-attaches the real media metadata.
 
@@ -17,8 +19,8 @@ unless --force) and stays within a byte budget so the R2 free tier is safe.
     python scripts/deploy/media-backfill.py --limit 5       # first 5 episodes
     python scripts/deploy/media-backfill.py --only-show the-long-room
 
-Requires ffmpeg, ffprobe and espeak-ng on PATH. Reads S3 and gateway settings
-from .env.deploy (repo root).
+Requires ffmpeg and ffprobe on PATH, plus either Piper (run scripts/piper-setup.sh)
+or espeak-ng. Reads S3 and gateway settings from .env.deploy (repo root).
 """
 
 from __future__ import annotations
@@ -54,6 +56,16 @@ WORDS_PER_SEC = ESPEAK_WPM / 60.0
 # dialogue beats. All offline, all in the base package.
 VOICES = {"narrator": "en-us", "a": "en-us+m3", "b": "en-us+f3"}
 
+# Piper voice model (name, length_scale) for the same three keys. These mirror
+# the ai-media service's map in
+# services/ai_media/auralis_ai_media/providers/tts.py so the backfilled audio
+# matches what the live pipeline produces.
+PIPER_MODELS = {
+    "narrator": ("en_US-lessac-medium", 1.04),
+    "a": ("en_US-ryan-medium", 1.0),
+    "b": ("en_US-hfc_female-medium", 0.99),
+}
+
 
 # --------------------------------------------------------------------------- env
 def load_env() -> dict[str, str]:
@@ -67,8 +79,25 @@ def load_env() -> dict[str, str]:
     return out
 
 
-def require_tools() -> None:
-    missing = [t for t in ("ffmpeg", "ffprobe", "espeak-ng") if not shutil.which(t)]
+def resolve_piper() -> tuple[str, dict[str, tuple[str, float]]] | None:
+    """Return (binary, {voice_key: (onnx_path, length_scale)}) if Piper is usable."""
+    binary = os.environ.get("PIPER_BIN") or shutil.which("piper") or str(ROOT / ".piper" / "bin" / "piper")
+    voices_dir = os.environ.get("PIPER_VOICES_DIR") or str(ROOT / ".piper" / "voices")
+    if not os.path.isfile(binary) or not os.path.isdir(voices_dir):
+        return None
+    models: dict[str, tuple[str, float]] = {}
+    for key, (name, length_scale) in PIPER_MODELS.items():
+        onnx = os.path.join(voices_dir, f"{name}.onnx")
+        if os.path.isfile(onnx) and os.path.isfile(onnx + ".json"):
+            models[key] = (onnx, length_scale)
+    if "narrator" not in models:
+        return None
+    return binary, models
+
+
+def require_tools(have_piper: bool) -> None:
+    needed = ["ffmpeg", "ffprobe"] if have_piper else ["ffmpeg", "ffprobe", "espeak-ng"]
+    missing = [t for t in needed if not shutil.which(t)]
     if missing:
         sys.exit(f"missing required tools: {', '.join(missing)}")
 
@@ -193,6 +222,27 @@ def _espeak(text: str, voice: str, out_path: str) -> None:
     )
 
 
+def _piper(binary: str, text: str, onnx: str, length_scale: float, out_path: str) -> None:
+    clean = re.sub(r"\s+", " ", text).strip()[:1800]
+    env = dict(os.environ)
+    bin_dir = os.path.dirname(os.path.abspath(binary))
+    env["LD_LIBRARY_PATH"] = f"{bin_dir}:{env.get('LD_LIBRARY_PATH', '')}".rstrip(":")
+    subprocess.run(
+        [
+            binary,
+            "--model", onnx,
+            "--config", onnx + ".json",
+            "--output_file", out_path,
+            "--length_scale", str(length_scale),
+            "--sentence_silence", "0.3",
+        ],
+        check=True,
+        capture_output=True,
+        input=clean.encode(),
+        env=env,
+    )
+
+
 def _silence(path: str, seconds: float, rate: int, channels: int, width: int) -> None:
     with wave.open(path, "wb") as w:
         w.setnchannels(channels)
@@ -213,14 +263,23 @@ def _concat(parts: list[str], out_path: str) -> None:
                 out.writeframes(seg.readframes(seg.getnframes()))
 
 
-def synthesize(lines: list[tuple[str, str]], work: str) -> str:
+def synthesize(
+    lines: list[tuple[str, str]],
+    work: str,
+    piper: tuple[str, dict[str, tuple[str, float]]] | None = None,
+) -> str:
     seg_dir = os.path.join(work, "seg")
     os.makedirs(seg_dir, exist_ok=True)
     parts: list[str] = []
     rate = channels = width = None
     for i, (vk, text) in enumerate(lines):
         seg = os.path.join(seg_dir, f"{i:04d}.wav")
-        _espeak(text, VOICES.get(vk, "en-us"), seg)
+        if piper:
+            binary, models = piper
+            onnx, length_scale = models.get(vk, models["narrator"])
+            _piper(binary, text, onnx, length_scale, seg)
+        else:
+            _espeak(text, VOICES.get(vk, "en-us"), seg)
         with wave.open(seg, "rb") as w:
             rate, channels, width = w.getframerate(), w.getnchannels(), w.getsampwidth()
         parts.append(seg)
@@ -351,7 +410,9 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    require_tools()
+    piper = resolve_piper()
+    require_tools(piper is not None)
+    print(f"tts engine: {'piper' if piper else 'espeak-ng'}", flush=True)
     d = load_env()
     gateway = (args.gateway or d.get("NEXT_PUBLIC_API_BASE", "").removesuffix("/api") or "https://auralis-gateway.onrender.com").rstrip("/")
     token = d.get("SERVICE_SHARED_TOKEN") or sys.exit("SERVICE_SHARED_TOKEN missing")
@@ -412,7 +473,7 @@ def main() -> None:
         try:
             seed = int(hashlib.sha256(ep["id"].encode()).hexdigest()[:12], 16)
             lines = compose_narration(show, ep, per_ep_sec, seed)
-            voice_wav = synthesize(lines, work)
+            voice_wav = synthesize(lines, work, piper)
             pkg = package(voice_wav, work)
             uploaded = upload_hls(mc, bucket, pkg["root"], key_prefix)
             used_bytes += uploaded
