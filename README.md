@@ -58,11 +58,11 @@ infrastructure, are in [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md).
 
 ## Deployment
 
-The platform runs on free tiers: Vercel for the web client, Render for the
-services, Neon for Postgres, Upstash for Redis and Kafka, and Cloudflare R2
-for media. It stays functional with no third-party AI credentials by falling
-back to the bundled local generation and TTS providers. See
-[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+The platform runs on free and low-cost tiers: Vercel for the web client, Render
+for the services and a single-node Redpanda (Kafka-API compatible), Neon for
+Postgres, Upstash for Redis, and Cloudflare R2 for media. It stays functional
+with no third-party AI credentials by falling back to the bundled local
+generation and TTS providers. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Documentation
 
