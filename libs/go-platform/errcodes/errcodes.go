@@ -47,12 +47,12 @@ func New(status int, code Code, message string) *Error {
 }
 
 // Common constructors.
-func Unauthed(msg string) *Error   { return New(http.StatusUnauthorized, Unauthorized, msg) }
-func Denied(msg string) *Error     { return New(http.StatusForbidden, Forbidden, msg) }
-func BadRequest(msg string) *Error { return New(http.StatusBadRequest, Validation, msg) }
-func Missing(msg string) *Error    { return New(http.StatusNotFound, NotFound, msg) }
+func Unauthed(msg string) *Error    { return New(http.StatusUnauthorized, Unauthorized, msg) }
+func Denied(msg string) *Error      { return New(http.StatusForbidden, Forbidden, msg) }
+func BadRequest(msg string) *Error  { return New(http.StatusBadRequest, Validation, msg) }
+func Missing(msg string) *Error     { return New(http.StatusNotFound, NotFound, msg) }
 func Conflicting(msg string) *Error { return New(http.StatusConflict, Conflict, msg) }
-func Unexpected(msg string) *Error { return New(http.StatusInternalServerError, Internal, msg) }
+func Unexpected(msg string) *Error  { return New(http.StatusInternalServerError, Internal, msg) }
 
 // WithFields attaches field-level validation detail.
 func (e *Error) WithFields(f map[string]string) *Error { e.Fields = f; return e }
