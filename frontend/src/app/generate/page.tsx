@@ -19,6 +19,11 @@ const STAGES = [
   { key: "package", label: "Packaging", at: 90 },
 ];
 
+// Languages the generator can actually write and voice natively. Mirrors
+// services/ai_media/auralis_ai_media/languages.py; anything else generates in
+// English until its models land.
+const NATIVE_LANGUAGES = new Set(["en", "hi", "es"]);
+
 const SAMPLE_BRIEFS = [
   "A night-shift paramedic in a coastal city starts getting radio calls from addresses that do not exist yet.",
   "Two marine biologists share a research station on a shrinking island and one working radio.",
@@ -216,6 +221,12 @@ function GenerateInner() {
                 </option>
               ))}
             </select>
+            {!NATIVE_LANGUAGES.has(language) && (
+              <span className="mt-1 block text-xs text-bone-500">
+                Scripts and voices for this language are still in progress. This series will be
+                written and voiced in English for now.
+              </span>
+            )}
           </label>
           <label className="flex items-end gap-2 pb-2 text-sm text-bone-200">
             <input
