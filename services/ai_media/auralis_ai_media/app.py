@@ -37,7 +37,7 @@ def _build(settings: Settings):
     )
     content = ServiceClient(settings.content_service_url, settings.service_shared_token, "ai-media")
     llm = select_llm(settings.ai_default_provider, settings.groq_api_key, settings.groq_model)
-    tts = select_tts(settings.piper_voice_path)
+    tts = select_tts(settings.piper_voices_dir, settings.piper_bin)
     pipeline = Pipeline(llm, tts, store, content, settings.ai_media_work_dir)
     return engine, sm, store, pipeline
 

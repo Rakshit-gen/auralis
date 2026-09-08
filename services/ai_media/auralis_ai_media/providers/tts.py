@@ -1,9 +1,13 @@
 """TTS providers.
 
-LocalTTSProvider uses espeak-ng, which is free, offline, and available in every
-container. PiperTTSProvider uses Piper neural voices (also free and offline) when
-a voice model is present on disk; it is the "production" adapter. Both render
-each line to a WAV segment and concatenate them with short pauses.
+PiperTTSProvider renders each line with a Piper neural voice (free, offline) and
+is the one we ship. It needs the piper binary and the voice models on disk; when
+either is missing the service falls back to LocalTTSProvider, which drives
+espeak-ng. espeak is intelligible but plainly synthetic, so it is a floor, not
+the intended sound.
+
+Both providers render each script line to its own WAV segment, insert a short
+pause after it, and concatenate the segments into one voice track.
 """
 
 from __future__ import annotations
@@ -31,12 +35,33 @@ _ESPEAK_VOICES = {
     "clear_high": "en-us+f2",
 }
 
+# The abstract voice keys the story bible assigns to characters, mapped to a
+# Piper voice model. The narrator model is required; the rest degrade to it if a
+# model file is missing. length_scale > 1 slows the delivery a little, which
+# suits narration; the character voices sit near 1.0 with small offsets so a
+# two-hander does not sound like one person talking to themselves.
+_PIPER_VOICES = {
+    "narrator": ("en_US-lessac-medium", 1.04),
+    "low_warm": ("en_US-ryan-medium", 1.0),
+    "bright_quick": ("en_US-amy-medium", 0.98),
+    "dry_measured": ("en_GB-alan-medium", 1.03),
+    "rough_soft": ("en_US-hfc_male-medium", 1.01),
+    "clear_high": ("en_US-hfc_female-medium", 0.99),
+}
+_PIPER_NARRATOR_MODEL = _PIPER_VOICES["narrator"][0]
 
-async def _run(cmd: list[str]) -> None:
-    proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    _, stderr = await proc.communicate()
+
+async def _run(cmd: list[str], *, stdin: bytes | None = None, env: dict[str, str] | None = None) -> None:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=asyncio.subprocess.PIPE if stdin is not None else None,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=env,
+    )
+    _, stderr = await proc.communicate(stdin)
     if proc.returncode != 0:
-        raise GenerationError(f"{cmd[0]} failed: {stderr.decode()[:300]}")
+        raise GenerationError(f"{os.path.basename(cmd[0])} failed: {stderr.decode()[:300]}")
 
 
 def _wav_duration(path: str) -> tuple[float, int, int]:
@@ -47,17 +72,17 @@ def _wav_duration(path: str) -> tuple[float, int, int]:
         return (frames / rate if rate else 0.0), rate, channels
 
 
-def _silence_wav(path: str, seconds: float, rate: int = _SAMPLE_RATE) -> None:
+def _silence_wav(path: str, seconds: float, rate: int, channels: int = 1, width: int = 2) -> None:
     frames = int(seconds * rate)
     with wave.open(path, "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
+        w.setnchannels(channels)
+        w.setsampwidth(width)
         w.setframerate(rate)
-        w.writeframes(b"\x00\x00" * frames)
+        w.writeframes(b"\x00" * (frames * channels * width))
 
 
 async def _concat(segment_paths: list[str], out_path: str) -> None:
-    """Concatenate mono 16-bit WAV files that share a sample rate."""
+    """Concatenate 16-bit WAV files, skipping any whose format does not match the first."""
     if not segment_paths:
         raise GenerationError("no audio segments to assemble")
     with wave.open(segment_paths[0], "rb") as first:
@@ -66,6 +91,9 @@ async def _concat(segment_paths: list[str], out_path: str) -> None:
         out.setparams(params)
         for p in segment_paths:
             with wave.open(p, "rb") as seg:
+                if seg.getframerate() != params.framerate or seg.getnchannels() != params.nchannels:
+                    log.warning("tts segment format mismatch, skipped", path=os.path.basename(p))
+                    continue
                 out.writeframes(seg.readframes(seg.getnframes()))
 
 
@@ -80,13 +108,16 @@ class LocalTTSProvider:
     async def synthesize(self, segments: list[TTSSegment], out_dir: str) -> TTSResult:
         os.makedirs(out_dir, exist_ok=True)
         parts: list[str] = []
+        rate = _SAMPLE_RATE
         for i, seg in enumerate(segments):
             voice = _ESPEAK_VOICES.get(seg.voice, "en-us")
             seg_path = os.path.join(out_dir, f"seg_{i:04d}.wav")
             await _run([self._bin, "-v", voice, "-s", "165", "-w", seg_path, seg.text.replace("\n", " ")[:1800]])
+            with wave.open(seg_path, "rb") as w:
+                rate = w.getframerate()
             parts.append(seg_path)
             pause_path = os.path.join(out_dir, f"pause_{i:04d}.wav")
-            _silence_wav(pause_path, 0.45 if seg.speaker == "Narrator" else 0.3)
+            _silence_wav(pause_path, 0.45 if seg.speaker == "Narrator" else 0.3, rate)
             parts.append(pause_path)
 
         combined = os.path.join(out_dir, "voice.wav")
@@ -99,38 +130,71 @@ class LocalTTSProvider:
 class PiperTTSProvider:
     name = "piper"
 
-    def __init__(self, model_path: str) -> None:
-        self._bin = shutil.which("piper")
-        self._model = model_path
-        if not self._bin or not os.path.exists(model_path):
-            raise GenerationError("piper binary or voice model not available")
+    def __init__(self, voices_dir: str, binary: str = "") -> None:
+        self._bin = binary or os.environ.get("PIPER_BIN") or shutil.which("piper") or ""
+        if not self._bin or not os.path.isfile(self._bin):
+            raise GenerationError("piper binary not found (set PIPER_BIN or put piper on PATH)")
+        self._bin_dir = os.path.dirname(os.path.abspath(self._bin))
+
+        if not voices_dir or not os.path.isdir(voices_dir):
+            raise GenerationError(f"piper voices directory not found: {voices_dir!r}")
+        self._voices_dir = voices_dir
+
+        self._models: dict[str, tuple[str, float]] = {}
+        for key, (model_name, length_scale) in _PIPER_VOICES.items():
+            onnx = os.path.join(voices_dir, f"{model_name}.onnx")
+            if os.path.isfile(onnx) and os.path.isfile(onnx + ".json"):
+                self._models[key] = (onnx, length_scale)
+        if "narrator" not in self._models:
+            raise GenerationError(f"piper narrator voice {_PIPER_NARRATOR_MODEL}.onnx missing from {voices_dir}")
+        missing = [k for k in _PIPER_VOICES if k not in self._models]
+        if missing:
+            log.warning("piper voices missing, will reuse narrator", keys=missing)
+
+    @property
+    def voice_count(self) -> int:
+        return len(self._models)
+
+    def _env(self) -> dict[str, str]:
+        env = dict(os.environ)
+        existing = env.get("LD_LIBRARY_PATH", "")
+        env["LD_LIBRARY_PATH"] = f"{self._bin_dir}:{existing}" if existing else self._bin_dir
+        return env
 
     async def synthesize(self, segments: list[TTSSegment], out_dir: str) -> TTSResult:
         os.makedirs(out_dir, exist_ok=True)
+        env = self._env()
         parts: list[str] = []
+        rate = _SAMPLE_RATE
         for i, seg in enumerate(segments):
+            onnx, length_scale = self._models.get(seg.voice, self._models["narrator"])
             seg_path = os.path.join(out_dir, f"seg_{i:04d}.wav")
-            proc = await asyncio.create_subprocess_exec(
-                self._bin,
-                "--model",
-                self._model,
-                "--output_file",
-                seg_path,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            await _run(
+                [
+                    self._bin,
+                    "--model",
+                    onnx,
+                    "--config",
+                    onnx + ".json",
+                    "--output_file",
+                    seg_path,
+                    "--length_scale",
+                    f"{length_scale}",
+                    "--sentence_silence",
+                    "0.3",
+                ],
+                stdin=seg.text.replace("\n", " ").strip()[:1800].encode(),
+                env=env,
             )
-            _, stderr = await proc.communicate(seg.text.replace("\n", " ")[:1800].encode())
-            if proc.returncode != 0:
-                raise GenerationError(f"piper failed: {stderr.decode()[:200]}")
-            parts.append(seg_path)
-            pause_path = os.path.join(out_dir, f"pause_{i:04d}.wav")
             with wave.open(seg_path, "rb") as w:
                 rate = w.getframerate()
-            _silence_wav(pause_path, 0.4, rate=rate)
+            parts.append(seg_path)
+            pause_path = os.path.join(out_dir, f"pause_{i:04d}.wav")
+            _silence_wav(pause_path, 0.5 if seg.speaker == "Narrator" else 0.32, rate)
             parts.append(pause_path)
 
         combined = os.path.join(out_dir, "voice.wav")
         await _concat(parts, combined)
         duration, rate, channels = _wav_duration(combined)
+        log.info("tts synthesized", provider=self.name, segments=len(segments), duration_sec=round(duration, 1))
         return TTSResult(wav_path=combined, duration_sec=duration, sample_rate=rate, channels=channels)

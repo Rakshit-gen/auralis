@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 
 import pytest
 
 from auralis_ai_media.pipeline import media
-from auralis_ai_media.providers.base import TTSSegment
+from auralis_ai_media.providers.base import GenerationError, TTSSegment
 from auralis_ai_media.providers.local_llm import LocalLLMProvider
-from auralis_ai_media.providers.tts import LocalTTSProvider
+from auralis_ai_media.providers.tts import LocalTTSProvider, PiperTTSProvider
 from auralis_ai_media.schemas import ContinuityContext, EpisodeScript, StoryBible
 
 
@@ -79,3 +80,25 @@ async def test_tts_and_ffmpeg_packaging(tmp_path):
     assert packaged.codec == "aac"
     assert packaged.checksum_sha256
     assert (tmp_path / "work" / "hls" / "master.m3u8").exists()
+
+
+@pytest.mark.asyncio
+async def test_piper_tts_when_configured(tmp_path):
+    """Runs only where Piper is set up (scripts/piper-setup.sh); CI has neither
+    the binary nor the models, so it skips there."""
+    voices_dir = os.environ.get("PIPER_VOICES_DIR", "")
+    if not voices_dir:
+        pytest.skip("PIPER_VOICES_DIR not set")
+    try:
+        tts = PiperTTSProvider(voices_dir)
+    except GenerationError as exc:
+        pytest.skip(f"piper not usable: {exc}")
+
+    segments = [
+        TTSSegment(speaker="Narrator", text="The tide turned just before first light.", voice="narrator"),
+        TTSSegment(speaker="Wren", text="You said the line would hold. It did not hold.", voice="bright_quick"),
+    ]
+    result = await tts.synthesize(segments, str(tmp_path / "piper"))
+    assert result.duration_sec > 1
+    assert result.sample_rate == 22050
+    assert result.channels == 1

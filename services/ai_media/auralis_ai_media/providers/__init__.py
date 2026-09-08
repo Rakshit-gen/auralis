@@ -23,11 +23,11 @@ def select_llm(default_provider: str, groq_api_key: str, groq_model: str) -> LLM
     return LocalLLMProvider()
 
 
-def select_tts(piper_voice_path: str) -> TTSProvider:
-    if piper_voice_path:
+def select_tts(piper_voices_dir: str, piper_bin: str = "") -> TTSProvider:
+    if piper_voices_dir:
         try:
-            provider = PiperTTSProvider(piper_voice_path)
-            log.info("tts provider selected", provider="piper")
+            provider = PiperTTSProvider(piper_voices_dir, piper_bin)
+            log.info("tts provider selected", provider="piper", voices=provider.voice_count)
             return provider
         except GenerationError as exc:
             log.warning("piper unavailable, using espeak-ng", error=str(exc))

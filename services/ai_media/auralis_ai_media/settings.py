@@ -22,8 +22,10 @@ class Settings(BaseServiceSettings):
     groq_model: str = "openai/gpt-oss-20b"
     ai_default_provider: str = "auto"  # auto | local | groq
 
-    # TTS. Piper is used when a voice model is present, else espeak-ng.
-    piper_voice_path: str = ""
+    # TTS. Piper neural voices are used when the models and binary are present,
+    # else espeak-ng. piper_bin defaults to PIPER_BIN or `piper` on PATH.
+    piper_voices_dir: str = ""
+    piper_bin: str = ""
 
     ai_media_run_worker: bool = True
     ai_media_work_dir: str = "/tmp/auralis-media"
