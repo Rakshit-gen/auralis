@@ -13,7 +13,9 @@ from auralis_reco.repo import Repo
 
 log = structlog.get_logger()
 
-CONSUMER_GROUP = "recommendation-service"
+# Bumped to force a full replay from the start of the log: the projection this
+# consumer builds is disposable and rebuilds from content/playback/user events.
+CONSUMER_GROUP = "recommendation-service-2"
 
 # Interaction weights: how much each signal moves an affinity score.
 W_PLAY = 0.5

@@ -97,7 +97,7 @@ partitions across them:
 | `user-service` | user |
 | `playback-service` | playback |
 | `analytics-service` | analytics |
-| `recommendation-service` | recommendation |
+| `recommendation-service-2` | recommendation |
 | `ai-media-service` | ai-media (upload events) |
 
 ## Operational notes
