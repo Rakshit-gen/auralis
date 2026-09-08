@@ -8,24 +8,30 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-html,
-body {
-  background: #04070c;
-  color: #e4dccb;
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-}
-
-body {
+html {
   /* Light coming up through deep water: a cool cyan glow low and left, a
-     fainter one high and right, over a near-black blue. The animated wave
-     canvas sits on top of this, the content on top of that. */
+     fainter one high and right, over a near-black blue. This lives on <html>
+     so the animated wave canvas (a negative z-index child of <body>) paints
+     on top of it instead of being hidden behind an opaque <body>. */
   background-color: #04070c;
   background-image:
     radial-gradient(1100px 620px at 8% 108%, rgba(84, 208, 204, 0.12), transparent 60%),
     radial-gradient(900px 520px at 108% -6%, rgba(226, 162, 77, 0.08), transparent 55%),
     linear-gradient(180deg, #04070c 0%, #060d16 45%, #04070c 100%);
   background-attachment: fixed;
+  min-height: 100%;
+}
+
+html,
+body {
+  color: #e4dccb;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  /* Transparent so the wave canvas behind it shows through. */
+  background: transparent;
   min-height: 100vh;
 }
 
