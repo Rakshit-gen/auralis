@@ -10,6 +10,9 @@ import (
 	"strings"
 )
 
+// Logger is an alias so callers can name the type without importing log/slog.
+type Logger = *slog.Logger
+
 type ctxKey int
 
 const fieldsKey ctxKey = 0
