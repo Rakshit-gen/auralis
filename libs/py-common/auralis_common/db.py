@@ -22,7 +22,29 @@ def make_engine(url: str, pool_size: int = 10) -> AsyncEngine:
     # asyncpg does not accept libpq's sslmode query parameter.
     if "sslmode=" in url:
         url = _strip_query_param(url, "sslmode")
-    return create_async_engine(url, pool_size=pool_size, max_overflow=5, pool_pre_ping=True, pool_recycle=1800)
+    connect_args: dict[str, object] = {}
+    # Behind a transaction pooler (PgBouncer: Neon's "-pooler" host, Supabase,
+    # and anything passing pgbouncer=true) asyncpg's prepared-statement cache
+    # collides across pooled backends. Disabling it and randomising statement
+    # names keeps the driver pooler-safe at a small planning cost.
+    if "-pooler." in url or "pgbouncer=true" in url:
+        url = _strip_query_param(url, "pgbouncer")
+        connect_args["statement_cache_size"] = 0
+        connect_args["prepared_statement_name_func"] = _unique_statement_name
+    return create_async_engine(
+        url,
+        pool_size=pool_size,
+        max_overflow=5,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        connect_args=connect_args,
+    )
+
+
+def _unique_statement_name() -> str:
+    import uuid
+
+    return f"__asyncpg_{uuid.uuid4().hex}__"
 
 
 def _strip_query_param(url: str, key: str) -> str:
