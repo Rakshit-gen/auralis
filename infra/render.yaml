@@ -1,0 +1,224 @@
+# Render Blueprint for the Auralis platform.
+#
+# This is the declarative equivalent of scripts/deploy/render.py. Either works:
+#   - Blueprint: connect the repo on render.com, "New +" > "Blueprint", pick this
+#     file. Render creates every service and prompts once for each secret.
+#   - Script:    scripts/deploy/render.py drives the same result through the API
+#     from .env.deploy (no dashboard clicks, re-runnable).
+#
+# Render's free tier has web services only, so the seven internal services are
+# also web services. They still require the gateway's HMAC identity signature on
+# proxied calls and SERVICE_SHARED_TOKEN on /internal, so a reachable URL is not
+# an open door. Move them to a private network on a paid plan to harden.
+#
+# All secret values (sync: false) are entered once in the Render dashboard when
+# the blueprint is first applied, then stored by Render. Non-secret values are
+# inline here.
+
+envVarGroups:
+  - name: auralis-shared
+    envVars:
+      - key: JWT_ISSUER
+        value: auralis-auth
+      - key: JWT_AUDIENCE
+        value: auralis
+      - key: LOG_LEVEL
+        value: info
+      - key: KAFKA_SASL_MECHANISM
+        value: SCRAM-SHA-256
+      - key: KAFKA_TLS_ENABLED
+        value: "true"
+      - key: PORT
+        value: "10000"
+      - key: JWT_SECRET
+        sync: false
+      - key: IDENTITY_SECRET
+        sync: false
+      - key: SERVICE_SHARED_TOKEN
+        sync: false
+      - key: KAFKA_BROKERS
+        sync: false
+      - key: KAFKA_SASL_USERNAME
+        sync: false
+      - key: KAFKA_SASL_PASSWORD
+        sync: false
+
+  - name: auralis-s3
+    envVars:
+      - key: S3_USE_SSL
+        value: "true"
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        value: auralis-media
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+
+services:
+  - type: web
+    name: auralis-gateway
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/gateway/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - key: GATEWAY_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: REDIS_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: AUTH_SERVICE_URL
+        value: https://auralis-auth.onrender.com
+      - key: USER_SERVICE_URL
+        value: https://auralis-user.onrender.com
+      - key: CONTENT_SERVICE_URL
+        value: https://auralis-content.onrender.com
+      - key: PLAYBACK_SERVICE_URL
+        value: https://auralis-playback.onrender.com
+      - key: ANALYTICS_SERVICE_URL
+        value: https://auralis-analytics.onrender.com
+      - key: AI_MEDIA_SERVICE_URL
+        value: https://auralis-ai-media.onrender.com
+      - key: RECOMMENDATION_SERVICE_URL
+        value: https://auralis-recommendation.onrender.com
+
+  - type: web
+    name: auralis-auth
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/auth/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - key: AUTH_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: AUTH_DATABASE_URL
+        sync: false
+      - key: AUTH_BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: AUTH_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: AUTH_BOOTSTRAP_ADMIN_NAME
+        value: Auralis Admin
+
+  - type: web
+    name: auralis-user
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/user/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - key: USER_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: USER_DATABASE_URL
+        sync: false
+
+  - type: web
+    name: auralis-content
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/content/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - fromGroup: auralis-s3
+      - key: CONTENT_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: CONTENT_DATABASE_URL
+        sync: false
+
+  - type: web
+    name: auralis-playback
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/playback/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - fromGroup: auralis-s3
+      - key: PLAYBACK_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: PLAYBACK_DATABASE_URL
+        sync: false
+      - key: CONTENT_SERVICE_URL
+        value: https://auralis-content.onrender.com
+      - key: USER_SERVICE_URL
+        value: https://auralis-user.onrender.com
+
+  - type: web
+    name: auralis-analytics
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/analytics/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - key: ANALYTICS_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: ANALYTICS_DATABASE_URL
+        sync: false
+
+  - type: web
+    name: auralis-ai-media
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/ai_media/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - fromGroup: auralis-s3
+      - key: AI_MEDIA_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: AI_MEDIA_DATABASE_URL
+        sync: false
+      - key: AI_MEDIA_RUN_WORKER
+        value: "true"
+      - key: CONTENT_SERVICE_URL
+        value: https://auralis-content.onrender.com
+      - key: USER_SERVICE_URL
+        value: https://auralis-user.onrender.com
+
+  - type: web
+    name: auralis-recommendation
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/recommendation/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - key: RECOMMENDATION_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: RECOMMENDATION_DATABASE_URL
+        sync: false

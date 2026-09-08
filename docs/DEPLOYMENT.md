@@ -9,8 +9,8 @@ resources.
 | Component | Provider | Free-tier notes |
 | --- | --- | --- |
 | Web client (Next.js) | Vercel | Hobby plan |
-| 8 services + worker | Render | Free web services sleep after 15 min idle |
-| Kafka | single-node Redpanda on Render (private service) | Kafka-API compatible, one container |
+| 8 services | Render | Free web services sleep after 15 min idle |
+| Kafka | Redpanda Cloud (Serverless) | SASL/SCRAM over TLS; or a single-node Redpanda container |
 | Postgres (7 logical DBs) | Neon | One project, seven databases |
 | Redis | Upstash | Free tier, TLS |
 | Object storage | Cloudflare R2 | 10 GB-month, 1M Class A ops, 10M Class B ops, free egress |
@@ -29,70 +29,124 @@ supplies every credential; none are in the repo.
 
 1. Create a Neon project.
 2. Create seven databases: `auth`, `users`, `content`, `playback`,
-   `analytics`, `ai_media`, `recommendation`.
+   `analytics`, `ai_media`, `recommendation`. `scripts/deploy/neon-setup.sh`
+   does this over `psql` from `NEON_ADMIN_URL` (the direct, non-pooler endpoint);
+   it is idempotent.
 3. Note the pooled connection string for each. Each service gets exactly one as
-   its `*_DATABASE_URL`.
+   its `*_DATABASE_URL`, pointed at the pooler host with `?sslmode=require`.
 
 ## 2. Redis (Upstash)
 
 Create a Redis database, copy the `rediss://` URL. Only the gateway needs it
-(`GATEWAY_REDIS_URL`); without it the gateway falls back to an in-process
-limiter.
+(`REDIS_URL`); without it the gateway falls back to an in-process limiter.
 
 ## 3. Object storage (Cloudflare R2)
 
 1. Create a bucket, for example `auralis-media`.
 2. Create an R2 API token (Object Read and Write).
-3. Config for ai-media and playback:
-   - `S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`
+3. Config for ai-media, content, and playback:
+   - `S3_ENDPOINT=<account>.r2.cloudflarestorage.com` (host only, no scheme)
+   - `S3_USE_SSL=true`
    - `S3_REGION=auto`
    - `S3_BUCKET=auralis-media`
-   - `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`
-   - `S3_FORCE_PATH_STYLE=true`
+   - `S3_ACCESS_KEY` / `S3_SECRET_KEY` (the R2 token's key pair)
 
-Keep the bucket private. Media is reached only through presigned URLs.
+Keep the bucket private. Media is reached only through presigned URLs. Create
+the bucket before the services start; the R2 token does not need bucket-create
+permission but the services will not create it for you on R2.
 
-## 4. Kafka (Redpanda on Render)
+## 4. Kafka (Redpanda Cloud)
 
-Deploy `redpandadata/redpanda` as a **private service** (no public port) with a
-single node:
+Render's free tier has no private services, so the broker is hosted. Create a
+**Redpanda Serverless** cluster (free tier), then a user and an ACL:
 
 ```
-redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M \
-  --node-id 0 --check=false \
-  --kafka-addr PLAINTEXT://0.0.0.0:9092 \
-  --advertise-kafka-addr PLAINTEXT://<render-private-hostname>:9092
+rpk cloud login
+rpk cloud namespace create auralis
+# create the cluster in the console, then:
+rpk security user create auralis-app -p '<generated>' --mechanism SCRAM-SHA-256
+rpk security acl create --allow-principal User:auralis-app \
+  --operation all --topic '*' --group '*'
 ```
 
-Attach a small persistent disk at `/var/lib/redpanda/data`. Every service gets
-`KAFKA_BROKERS=<render-private-hostname>:9092`. Topics auto-create on first use;
-to pre-create them, run `rpk topic create` for the six topics and their `.dlq`
-counterparts listed in [KAFKA.md](KAFKA.md).
+Pre-create the topics (Serverless disables auto-creation), all five plus their
+`.dlq` counterparts from [KAFKA.md](KAFKA.md).
+`scripts/deploy/redpanda-topics.py` does this from the `KAFKA_*` values in
+`.env.deploy` (partitions 3, broker-default replication), and is idempotent:
 
-A single node has no replication. Acceptable for a demo, not for production;
-production uses a replicated Redpanda cluster or managed Kafka.
+```
+.venv/bin/python scripts/deploy/redpanda-topics.py
+```
+
+Or with `rpk`:
+
+```
+for t in auralis.user.events auralis.content.events auralis.playback.events \
+         auralis.ai.events auralis.media.events; do
+  rpk topic create "$t" "$t.dlq" -p 3
+done
+```
+
+Every service then gets:
+
+```
+KAFKA_BROKERS=<seed-broker-host>:9092
+KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+KAFKA_SASL_USERNAME=auralis-app
+KAFKA_SASL_PASSWORD=<generated>
+KAFKA_TLS_ENABLED=true
+```
+
+The Go and Python clients pick these up for every producer, consumer, and DLQ
+writer (see [KAFKA.md](KAFKA.md#transport-security)). Leave them unset for a
+local plaintext broker.
+
+Alternative: run one `redpandadata/redpanda` container on a host that offers
+free private services (Fly.io, Railway) with `--kafka-addr PLAINTEXT://...` and
+no SASL. Single node, no replication, fine for a demo.
 
 ## 5. Services (Render)
 
-Eight web services plus one background worker, each from its Dockerfile in the
-repo (`services/<name>/Dockerfile`). Set the build context to the repo root.
+Eight web services. `infra/render.yaml` is a Render Blueprint that declares all
+eight, wired to each other and to the managed infra by environment group.
+`scripts/deploy/render.py` creates or updates them through the Render API from
+`.env.deploy` and is re-runnable (existing services are updated in place):
 
-| Render service | Dockerfile | Port | Extra |
+```
+scripts/deploy/render.py                 # create/update all, then deploy
+scripts/deploy/render.py --no-deploy     # sync config only
+scripts/deploy/render.py --only auralis-gateway
+```
+
+| Render service | Dockerfile | Local port | Type |
 | --- | --- | --- | --- |
-| auralis-gateway | services/gateway/Dockerfile | 8080 | public |
-| auralis-auth | services/auth/Dockerfile | 8081 | private |
-| auralis-user | services/user/Dockerfile | 8083 | private |
-| auralis-content | services/content/Dockerfile | 8082 | private |
-| auralis-playback | services/playback/Dockerfile | 8084 | private |
-| auralis-analytics | services/analytics/Dockerfile | 8087 | private |
-| auralis-ai-media | services/ai_media/Dockerfile | 8085 | private |
-| auralis-recommendation | services/recommendation/Dockerfile | 8086 | private |
-| auralis-ai-media-worker | services/ai_media/Dockerfile | n/a | `command: worker`, background worker |
+| auralis-gateway | services/gateway/Dockerfile | 8080 | web (public) |
+| auralis-auth | services/auth/Dockerfile | 8081 | web |
+| auralis-user | services/user/Dockerfile | 8083 | web |
+| auralis-content | services/content/Dockerfile | 8082 | web |
+| auralis-playback | services/playback/Dockerfile | 8084 | web |
+| auralis-analytics | services/analytics/Dockerfile | 8087 | web |
+| auralis-ai-media | services/ai_media/Dockerfile | 8085 | web |
+| auralis-recommendation | services/recommendation/Dockerfile | 8086 | web |
 
-Only the gateway is public. It reaches the others by their Render private
-hostnames, set as `AUTH_SERVICE_URL`, `USER_SERVICE_URL`, `CONTENT_SERVICE_URL`,
+On Render every service binds `0.0.0.0:10000` (`<NAME>_HTTP_ADDR` and `PORT`
+are both set to `10000`); Render routes external HTTPS to that port. ai-media
+runs its generation worker in-process (`AI_MEDIA_RUN_WORKER=true`, the default),
+so no separate worker service is needed. The Kafka consumers in user, playback,
+analytics, recommendation, and ai-media also run in-process (their
+`*_RUN_CONSUMER` toggle defaults to true).
+
+Render's free tier has only web services, so the seven internal services are
+also deployed as web services. Each still requires a valid identity signature
+(`X-Auralis-Identity-Sig`, HMAC keyed by `IDENTITY_SECRET`) on proxied requests
+and `SERVICE_SHARED_TOKEN` on `/internal/*`, so a reachable URL is not an open
+door, but for a hardened deployment move them behind a private network on a
+paid plan. The gateway reaches them by their `onrender.com` hostnames set as
+`AUTH_SERVICE_URL`, `USER_SERVICE_URL`, `CONTENT_SERVICE_URL`,
 `PLAYBACK_SERVICE_URL`, `ANALYTICS_SERVICE_URL`, `AI_MEDIA_SERVICE_URL`,
-`RECOMMENDATION_SERVICE_URL`.
+`RECOMMENDATION_SERVICE_URL`. Playback also needs `CONTENT_SERVICE_URL` and
+`USER_SERVICE_URL`; ai-media needs `CONTENT_SERVICE_URL` (and optionally
+`USER_SERVICE_URL`).
 
 Shared env on every service:
 
@@ -100,19 +154,31 @@ Shared env on every service:
 JWT_SECRET=<generated>
 IDENTITY_SECRET=<generated>
 SERVICE_SHARED_TOKEN=<generated>
-KAFKA_BROKERS=<redpanda-private-host>:9092
+JWT_ISSUER=auralis-auth
+JWT_AUDIENCE=auralis
+KAFKA_BROKERS=<redpanda-seed-host>:9092
+KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+KAFKA_SASL_USERNAME=<redpanda-user>
+KAFKA_SASL_PASSWORD=<redpanda-secret>
+KAFKA_TLS_ENABLED=true
 LOG_LEVEL=info
+PORT=10000
 OTEL_EXPORTER_OTLP_ENDPOINT=<collector endpoint, optional>
 ```
 
-Per-service: its `*_DATABASE_URL`, and for ai-media/playback the `S3_*` block.
-Auth also takes `ADMIN_EMAIL` / `ADMIN_PASSWORD` for the bootstrap admin.
+Per-service: its `<NAME>_HTTP_ADDR` (`0.0.0.0:10000`), its `*_DATABASE_URL`,
+and for content, playback, and ai-media the `S3_*` block. The gateway also
+takes `REDIS_URL` and, once the web client is up, `CORS_ALLOWED_ORIGINS`. Auth
+also takes `AUTH_BOOTSTRAP_ADMIN_EMAIL` / `AUTH_BOOTSTRAP_ADMIN_PASSWORD` /
+`AUTH_BOOTSTRAP_ADMIN_NAME`.
 
 ### Migrations
 
-Each service runs its own migrations on boot unless `SKIP_MIGRATE=true`. First
-deploy: let them run. The Go services embed SQL and track `schema_migrations`;
-the Python services run Alembic.
+The Go services embed their SQL and run it on every boot, tracking
+`schema_migrations`; they do not honor `SKIP_MIGRATE`. The Python services run
+Alembic on boot unless `SKIP_MIGRATE=true`. Neon has no advisory-lock
+contention here because each service owns its own database. Point the
+`*_DATABASE_URL` at the Neon pooler host; migrations run fine over it.
 
 ### The free-tier sleep
 
