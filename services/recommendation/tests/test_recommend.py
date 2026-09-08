@@ -131,6 +131,4 @@ def test_metric_math():
     recommended = ["x", "a", "y", "b"]
     relevant = {"a", "b"}
     assert precision_at_k(recommended, relevant, 4) == 0.5
-    assert round(ndcg_at_k(recommended, relevant, 4), 3) == round(
-        (1 / 1.585 + 1 / 2.322) / (1 / 1.0 + 1 / 1.585), 3
-    )
+    assert round(ndcg_at_k(recommended, relevant, 4), 3) == round((1 / 1.585 + 1 / 2.322) / (1 / 1.0 + 1 / 1.585), 3)

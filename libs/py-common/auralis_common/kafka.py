@@ -49,9 +49,7 @@ def security_kwargs() -> dict:
     username = os.getenv("KAFKA_SASL_USERNAME", "")
     password = os.getenv("KAFKA_SASL_PASSWORD", "")
     if not username or not password:
-        raise RuntimeError(
-            "KAFKA_SASL_MECHANISM is set but KAFKA_SASL_USERNAME/PASSWORD are empty"
-        )
+        raise RuntimeError("KAFKA_SASL_MECHANISM is set but KAFKA_SASL_USERNAME/PASSWORD are empty")
     return {
         "security_protocol": "SASL_SSL" if tls else "SASL_PLAINTEXT",
         "sasl_mechanism": mechanism,

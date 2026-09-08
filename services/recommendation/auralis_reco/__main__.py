@@ -1,8 +1,8 @@
 """Entrypoints for the recommendation service.
 
-    python -m auralis_reco            API server (also runs the Kafka consumer)
-    python -m auralis_reco migrate    run Alembic migrations and exit
-    python -m auralis_reco evaluate   run offline evaluation (Precision/Recall/NDCG@K, coverage, diversity)
+python -m auralis_reco            API server (also runs the Kafka consumer)
+python -m auralis_reco migrate    run Alembic migrations and exit
+python -m auralis_reco evaluate   run offline evaluation (Precision/Recall/NDCG@K, coverage, diversity)
 """
 
 from __future__ import annotations

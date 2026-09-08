@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import os
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from auralis_ai_media.models import Base
 
 config = context.config

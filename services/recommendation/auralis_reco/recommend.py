@@ -17,9 +17,7 @@ class Recommender:
         # 0 = pure relevance, 1 = maximum spread across genres.
         self.diversity = diversity
 
-    async def feed(
-        self, repo: Repo, user_id: str, size: int | None = None, holdout: set[str] | None = None
-    ) -> dict:
+    async def feed(self, repo: Repo, user_id: str, size: int | None = None, holdout: set[str] | None = None) -> dict:
         size = size or self.feed_size
         # holdout is used only by the offline evaluation: the listed shows are
         # scored as if the user had never interacted with them, so a leave-last-out
@@ -87,7 +85,7 @@ class Recommender:
         for m, content_sim in pairs:
             cf = collab.get(m.show_id, 0.0)
             sig = signals.get(m.show_id)
-            pop = (sig.plays if sig else 0)
+            pop = sig.plays if sig else 0
             blended = 0.6 * content_sim + 0.3 * cf + 0.1 * min(1.0, pop / 500.0)
             out.append((_similar_view(m, content_sim, cf), blended))
         out.sort(key=lambda x: x[1], reverse=True)
@@ -98,7 +96,7 @@ class Recommender:
         signals = await repo.signals_map([s.show_id for s in shows])
         ranked = sorted(
             shows,
-            key=lambda s: (signals[s.show_id].trending_score if s.show_id in signals else 0.0),
+            key=lambda s: signals[s.show_id].trending_score if s.show_id in signals else 0.0,
             reverse=True,
         )[:size]
         return {"items": [_basic_view(s, signals.get(s.show_id)) for s in ranked]}
@@ -108,7 +106,7 @@ class Recommender:
         signals = await repo.signals_map([s.show_id for s in shows])
         ranked = sorted(
             shows,
-            key=lambda s: (signals[s.show_id].plays if s.show_id in signals else 0),
+            key=lambda s: signals[s.show_id].plays if s.show_id in signals else 0,
             reverse=True,
         )[:size]
         return {"items": [_basic_view(s, signals.get(s.show_id)) for s in ranked]}

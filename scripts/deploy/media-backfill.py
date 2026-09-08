@@ -39,6 +39,7 @@ from pathlib import Path
 
 import httpx
 from minio import Minio
+from minio.error import S3Error
 
 ROOT = Path(__file__).resolve().parents[2]
 ENV_DEPLOY = ROOT / ".env.deploy"
@@ -316,7 +317,7 @@ def object_exists(mc: Minio, bucket: str, key: str) -> bool:
     try:
         mc.stat_object(bucket, key)
         return True
-    except Exception:
+    except S3Error:
         return False
 
 

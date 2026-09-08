@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import os
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from auralis_reco.models import Base
 
 config = context.config
@@ -14,7 +14,7 @@ config = context.config
 _url = os.environ.get("RECOMMENDATION_DATABASE_URL", "postgresql://localhost:5432/recommendation_dev")
 for prefix in ("postgresql+asyncpg://", "postgres://", "postgresql://"):
     if _url.startswith(prefix):
-        _url = "postgresql+psycopg://" + _url[len(prefix):]
+        _url = "postgresql+psycopg://" + _url[len(prefix) :]
         break
 config.set_main_option("sqlalchemy.url", _url)
 

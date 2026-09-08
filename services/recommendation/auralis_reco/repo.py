@@ -20,15 +20,9 @@ class Repo:
 
     async def upsert_show(self, **kw) -> None:
         await self.s.execute(
-            pg_insert(models.Show)
-            .values(**kw)
-            .on_conflict_do_update(index_elements=[models.Show.show_id], set_=kw)
+            pg_insert(models.Show).values(**kw).on_conflict_do_update(index_elements=[models.Show.show_id], set_=kw)
         )
-        await self.s.execute(
-            pg_insert(models.ShowSignal)
-            .values(show_id=kw["show_id"])
-            .on_conflict_do_nothing()
-        )
+        await self.s.execute(pg_insert(models.ShowSignal).values(show_id=kw["show_id"]).on_conflict_do_nothing())
 
     async def bump_signal(self, show_id: str, **deltas) -> None:
         cols = ", ".join(f"{k} = reco_show_signals.{k} + :{k}" for k in deltas)
