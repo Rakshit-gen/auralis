@@ -1,0 +1,57 @@
+# Optional explicit migration step for a fresh cluster. Each service also
+# migrates on its own startup, so this is belt-and-suspenders: run it once
+# before the first rollout if you want migrations applied by a single process.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: auralis
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: auth
+          image: ghcr.io/rakshit-gen/auralis-auth:latest
+          args: ["migrate"]
+          env:
+            - name: AUTH_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: AUTH_DATABASE_URL } }
+        - name: user
+          image: ghcr.io/rakshit-gen/auralis-user:latest
+          args: ["migrate"]
+          env:
+            - name: USER_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: USER_DATABASE_URL } }
+        - name: content
+          image: ghcr.io/rakshit-gen/auralis-content:latest
+          args: ["migrate"]
+          env:
+            - name: CONTENT_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: CONTENT_DATABASE_URL } }
+        - name: playback
+          image: ghcr.io/rakshit-gen/auralis-playback:latest
+          args: ["migrate"]
+          env:
+            - name: PLAYBACK_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: PLAYBACK_DATABASE_URL } }
+        - name: analytics
+          image: ghcr.io/rakshit-gen/auralis-analytics:latest
+          args: ["migrate"]
+          env:
+            - name: ANALYTICS_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: ANALYTICS_DATABASE_URL } }
+        - name: ai-media
+          image: ghcr.io/rakshit-gen/auralis-ai-media:latest
+          args: ["migrate"]
+          env:
+            - name: AI_MEDIA_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: AI_MEDIA_DATABASE_URL } }
+        - name: recommendation
+          image: ghcr.io/rakshit-gen/auralis-recommendation:latest
+          args: ["migrate"]
+          env:
+            - name: RECOMMENDATION_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: RECOMMENDATION_DATABASE_URL } }

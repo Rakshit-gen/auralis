@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: auralis
+
+resources:
+  - namespace.yaml
+  - config.yaml
+  - postgres.yaml
+  - infra.yaml
+  - observability.yaml
+  - services-go.yaml
+  - services-python.yaml
+  - frontend.yaml
+# job-migrate.yaml is intentionally not included: apply it on demand with
+#   kubectl apply -f infra/k8s/job-migrate.yaml
+
+# Override image tags per environment, for example:
+# images:
+#   - name: ghcr.io/rakshit-gen/auralis-gateway
+#     newTag: v1.2.3
