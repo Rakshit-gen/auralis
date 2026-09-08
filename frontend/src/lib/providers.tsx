@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "@/stores/auth";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const clientRef = useRef<QueryClient>();
+  const clientRef = useRef<QueryClient | null>(null);
   if (!clientRef.current) {
     clientRef.current = new QueryClient({
       defaultOptions: {

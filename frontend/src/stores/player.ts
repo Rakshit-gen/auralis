@@ -119,6 +119,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
           method: "POST",
           body: { episode_id: episodeId },
         });
+        if (!auth?.episode || !auth.hls_master_url) {
+          throw new Error("playback authorization returned no media");
+        }
         const entry: QueueEntry = {
           episodeId,
           showId: auth.episode.show_id,
@@ -161,7 +164,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const { queue, index } = get();
       if (index + 1 < queue.length) {
         set({ index: index + 1 });
-        await get().authorize(queue[index + 1].episodeId, queue[index + 1]);
+        await get()
+          .authorize(queue[index + 1].episodeId, queue[index + 1])
+          .catch(() => set({ playing: false }));
       } else {
         set({ playing: false });
       }
