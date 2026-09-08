@@ -1,0 +1,134 @@
+# The two Python services: ai-media (FastAPI API + a separate worker
+# Deployment) and recommendation. Both run Alembic on startup; Alembic's
+# version table makes concurrent starts safe, so no init container is needed.
+#
+# ai-media API -------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-media
+  namespace: auralis
+spec:
+  selector: { app: ai-media }
+  ports: [{ port: 8085, targetPort: 8085 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-media
+  namespace: auralis
+  labels: { app: ai-media }
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: ai-media }
+  template:
+    metadata:
+      labels: { app: ai-media }
+    spec:
+      containers:
+        - name: ai-media
+          image: ghcr.io/rakshit-gen/auralis-ai-media:latest
+          ports: [{ containerPort: 8085 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: AI_MEDIA_HTTP_ADDR, value: "0.0.0.0:8085" }
+            - { name: AI_MEDIA_RUN_WORKER, value: "false" }
+            - name: AI_MEDIA_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: AI_MEDIA_DATABASE_URL } }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8085 }
+            initialDelaySeconds: 8
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8085 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "192Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+---
+# ai-media worker (no HTTP port; long-running generation jobs) --------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-media-worker
+  namespace: auralis
+  labels: { app: ai-media-worker }
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: ai-media-worker }
+  template:
+    metadata:
+      labels: { app: ai-media-worker }
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/rakshit-gen/auralis-ai-media:latest
+          args: ["worker"]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: SKIP_MIGRATE, value: "true" }
+            - name: AI_MEDIA_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: AI_MEDIA_DATABASE_URL } }
+          resources:
+            requests: { cpu: "250m", memory: "384Mi" }
+            limits: { cpu: "2", memory: "1Gi" }
+---
+# recommendation ---------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: recommendation
+  namespace: auralis
+spec:
+  selector: { app: recommendation }
+  ports: [{ port: 8086, targetPort: 8086 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recommendation
+  namespace: auralis
+  labels: { app: recommendation }
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: recommendation }
+  template:
+    metadata:
+      labels: { app: recommendation }
+    spec:
+      containers:
+        - name: recommendation
+          image: ghcr.io/rakshit-gen/auralis-recommendation:latest
+          ports: [{ containerPort: 8086 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: RECOMMENDATION_HTTP_ADDR, value: "0.0.0.0:8086" }
+            - name: RECOMMENDATION_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: RECOMMENDATION_DATABASE_URL } }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8086 }
+            initialDelaySeconds: 8
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8086 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "192Mi" }
+            limits: { cpu: "1", memory: "512Mi" }

@@ -1,0 +1,311 @@
+# The six Go services.
+#
+# Images default to the tag pushed by CI to GHCR; override per environment with
+# kustomize or `kubectl set image`.
+#
+# Migrations: every Go service applies its embedded migrations on startup and
+# records them in schema_migrations, so a boot with nothing to do is a no-op.
+# The rollout strategy below (maxSurge 1, maxUnavailable 0) brings pods up one
+# at a time, so a deploy that carries a new migration never has two pods
+# applying it at once. Run infra/k8s/job-migrate.yaml first on a fresh cluster
+# if you prefer an explicit step. Scale replicas up freely once the schema is
+# current.
+#
+# gateway (no database) ------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: auralis
+spec:
+  selector: { app: gateway }
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: auralis
+  labels: { app: gateway }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: gateway }
+  template:
+    metadata:
+      labels: { app: gateway }
+    spec:
+      containers:
+        - name: gateway
+          image: ghcr.io/rakshit-gen/auralis-gateway:latest
+          ports: [{ containerPort: 8080 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: GATEWAY_HTTP_ADDR, value: ":8080" }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+---
+# auth ---------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  namespace: auralis
+spec:
+  selector: { app: auth }
+  ports: [{ port: 8081, targetPort: 8081 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  namespace: auralis
+  labels: { app: auth }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: auth }
+  template:
+    metadata:
+      labels: { app: auth }
+    spec:
+      containers:
+        - name: auth
+          image: ghcr.io/rakshit-gen/auralis-auth:latest
+          ports: [{ containerPort: 8081 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: AUTH_HTTP_ADDR, value: ":8081" }
+            - name: AUTH_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: AUTH_DATABASE_URL } }
+            - name: AUTH_BOOTSTRAP_ADMIN_EMAIL
+              valueFrom: { secretKeyRef: { name: auralis-secrets, key: ADMIN_EMAIL } }
+            - name: AUTH_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: auralis-secrets, key: ADMIN_PASSWORD } }
+            - { name: AUTH_BOOTSTRAP_ADMIN_NAME, value: "Auralis Admin" }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8081 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8081 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "96Mi" }
+            limits: { cpu: "1", memory: "384Mi" }
+---
+# user -------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: user
+  namespace: auralis
+spec:
+  selector: { app: user }
+  ports: [{ port: 8083, targetPort: 8083 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user
+  namespace: auralis
+  labels: { app: user }
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: user }
+  template:
+    metadata:
+      labels: { app: user }
+    spec:
+      containers:
+        - name: user
+          image: ghcr.io/rakshit-gen/auralis-user:latest
+          ports: [{ containerPort: 8083 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: USER_HTTP_ADDR, value: ":8083" }
+            - name: USER_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: USER_DATABASE_URL } }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8083 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8083 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+---
+# content --------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: content
+  namespace: auralis
+spec:
+  selector: { app: content }
+  ports: [{ port: 8082, targetPort: 8082 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content
+  namespace: auralis
+  labels: { app: content }
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: content }
+  template:
+    metadata:
+      labels: { app: content }
+    spec:
+      containers:
+        - name: content
+          image: ghcr.io/rakshit-gen/auralis-content:latest
+          ports: [{ containerPort: 8082 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: CONTENT_HTTP_ADDR, value: ":8082" }
+            - name: CONTENT_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: CONTENT_DATABASE_URL } }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8082 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8082 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+---
+# playback ------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: playback
+  namespace: auralis
+spec:
+  selector: { app: playback }
+  ports: [{ port: 8084, targetPort: 8084 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: playback
+  namespace: auralis
+  labels: { app: playback }
+spec:
+  replicas: 2
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: playback }
+  template:
+    metadata:
+      labels: { app: playback }
+    spec:
+      containers:
+        - name: playback
+          image: ghcr.io/rakshit-gen/auralis-playback:latest
+          ports: [{ containerPort: 8084 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: PLAYBACK_HTTP_ADDR, value: ":8084" }
+            - name: PLAYBACK_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: PLAYBACK_DATABASE_URL } }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8084 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8084 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "96Mi" }
+            limits: { cpu: "1", memory: "384Mi" }
+---
+# analytics ----------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics
+  namespace: auralis
+spec:
+  selector: { app: analytics }
+  ports: [{ port: 8087, targetPort: 8087 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics
+  namespace: auralis
+  labels: { app: analytics }
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: analytics }
+  template:
+    metadata:
+      labels: { app: analytics }
+    spec:
+      containers:
+        - name: analytics
+          image: ghcr.io/rakshit-gen/auralis-analytics:latest
+          ports: [{ containerPort: 8087 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: ANALYTICS_HTTP_ADDR, value: ":8087" }
+            - name: ANALYTICS_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: ANALYTICS_DATABASE_URL } }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8087 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8087 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
