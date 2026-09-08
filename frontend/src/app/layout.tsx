@@ -4,6 +4,7 @@ import { Providers } from "@/lib/providers";
 import { Nav } from "@/components/layout/nav";
 import { AudioEngine } from "@/components/player/audio-engine";
 import { PlayerBar } from "@/components/player/player-bar";
+import { ShortcutsHelp } from "@/components/player/shortcuts";
 
 export const metadata: Metadata = {
   title: { default: "Auralis", template: "%s · Auralis" },
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </main>
           <AudioEngine />
           <PlayerBar />
+          <ShortcutsHelp />
         </Providers>
       </body>
     </html>

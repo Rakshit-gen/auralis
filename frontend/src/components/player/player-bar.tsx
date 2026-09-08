@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePlayer } from "@/stores/player";
 import { formatDuration, coverStyle } from "@/lib/format";
 import { Back15Icon, Fwd30Icon, PauseIcon, PlayIcon, SkipBackIcon, SkipFwdIcon } from "@/components/icons";
+import { QueuePanel } from "@/components/player/queue-panel";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -154,6 +155,8 @@ export function PlayerBar() {
               <Scrubber />
             </div>
             {controls}
+            <QueuePanel />
+            <p className="text-xs text-bone-500">Press ? for keyboard shortcuts</p>
             <div className="flex items-center gap-6 text-sm text-bone-300">
               <label className="flex items-center gap-2">
                 Speed
