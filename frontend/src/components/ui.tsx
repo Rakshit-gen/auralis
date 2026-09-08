@@ -40,7 +40,7 @@ export function EmptyState({
 
 export function ErrorState({ message, retry }: { message: string; retry?: () => void }) {
   return (
-    <div className="surface flex flex-col items-center gap-3 border-red-900/50 px-6 py-10 text-center">
+    <div className="surface flex flex-col items-center gap-3 border-amber/30 px-6 py-10 text-center">
       <p className="text-sm text-bone-200">{message}</p>
       {retry && (
         <button className="btn-ghost" onClick={retry}>

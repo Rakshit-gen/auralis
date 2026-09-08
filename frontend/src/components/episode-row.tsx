@@ -61,7 +61,7 @@ export function EpisodeRow({
   return (
     <div
       className={`surface flex items-start gap-4 p-4 transition ${
-        isCurrent ? "border-amber/60 shadow-glow" : "hover:border-ink-600"
+        isCurrent ? "border-amber/60 bg-amber/[0.04]" : "hover:border-ink-600"
       }`}
     >
       <button

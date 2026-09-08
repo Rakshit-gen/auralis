@@ -12,7 +12,7 @@ export function ShowCard({ show, reason }: { show: Show; reason?: string }) {
       className="group block animate-fade-up focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber"
     >
       <div
-        className="relative aspect-[3/4] overflow-hidden rounded-xl border border-ink-700 shadow-lift transition group-hover:-translate-y-1 group-hover:shadow-glow"
+        className="relative aspect-[3/4] overflow-hidden rounded-xl border border-ink-700 shadow-lift transition duration-200 group-hover:-translate-y-1 group-hover:border-ink-600"
         style={coverStyle(show.accent_color || "#d9963f", show.id)}
       >
         <div className="absolute inset-0 bg-grain opacity-[0.06]" />
