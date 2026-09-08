@@ -32,10 +32,9 @@ export default function Landing() {
           <h1 className="font-display text-4xl leading-[1.05] text-bone-100 sm:text-5xl lg:text-6xl">
             Stories that keep going after you put the headphones down.
           </h1>
-          <p className="mt-6 max-w-lg text-lg text-bone-300">
-            Auralis is a home for original serialized fiction in audio. Follow a show, stream an
-            episode, and pick up exactly where you stopped on any device. Some series are written and
-            voiced by our creators. Others you build yourself, from a sentence.
+          <p className="mt-6 max-w-md text-lg text-bone-300">
+            Original serialized fiction in audio. Follow a show and pick up right where you stopped,
+            on any device.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/register" className="btn-primary">
@@ -48,15 +47,15 @@ export default function Landing() {
           <ul className="mt-10 grid gap-4 text-sm text-bone-300 sm:grid-cols-3">
             <li className="surface p-4">
               <WaveIcon className="mb-2 h-5 w-5 text-amber" />
-              Resume playback across devices, down to the second.
+              Resume to the second, on any device.
             </li>
             <li className="surface p-4">
               <SparkIcon className="mb-2 h-5 w-5 text-signal" />
-              Generate a full AI series, edit the scripts, then publish.
+              Generate a full AI series, then publish.
             </li>
             <li className="surface p-4">
               <span className="mb-2 block text-lg text-amber">&#9670;</span>
-              A recommendation feed that actually changes as you listen.
+              A feed that shifts as you listen.
             </li>
           </ul>
         </div>
@@ -69,7 +68,7 @@ export default function Landing() {
             ))}
             {!trending?.length && (
               <p className="px-1 py-8 text-center text-sm text-bone-400">
-                The catalog is warming up. Check back in a moment.
+                The catalog is warming up.
               </p>
             )}
           </div>
@@ -87,10 +86,9 @@ export default function Landing() {
             <h2 className="font-display text-3xl text-bone-100 sm:text-4xl">
               Give it <span className="text-tide">one sentence</span>. Get back a whole season.
             </h2>
-            <p className="mt-4 max-w-lg text-bone-300">
-              The generation pipeline writes a story bible, outlines every episode, drafts the full
-              scripts, then synthesizes and packages the audio. You review the scripts and decide
-              what gets published. Nothing goes live on its own.
+            <p className="mt-4 max-w-md text-bone-300">
+              The pipeline drafts every script and voices the audio. You review it and decide what
+              gets published.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/register" className="btn-tide">
