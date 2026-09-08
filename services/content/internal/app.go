@@ -62,6 +62,7 @@ func (a *App) Routes(r chi.Router) {
 		r.Use(authn.RequireRoles(authn.RoleCreator, authn.RoleAdmin))
 		r.Post("/shows", a.createShow)
 		r.Get("/creator/shows", a.listMyShows)
+		r.Get("/creator/shows/{id}/episodes", a.listMyShowEpisodes)
 		r.Patch("/shows/{id}", a.updateShow)
 		r.Post("/shows/{id}/seasons", a.createSeason)
 		r.Post("/seasons/{id}/episodes", a.createEpisode)

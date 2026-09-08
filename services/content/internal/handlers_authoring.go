@@ -96,6 +96,26 @@ func (a *App) listMyShows(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{"shows": nonNil(shows)})
 }
 
+// listMyShowEpisodes returns every episode of a show the caller owns, whatever
+// its publish state. The creator dashboard needs this to show progress on an
+// AI-generated draft, where nothing is published yet; the public
+// /shows/{id}/episodes route only ever returns published episodes. Scripts and
+// internal media keys are stripped the same way as the public projection.
+func (a *App) listMyShowEpisodes(w http.ResponseWriter, r *http.Request) {
+	id, _ := authn.FromContext(r.Context())
+	sh, err := a.ownsShow(r.Context(), id, chi.URLParam(r, "id"))
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	eps, err := a.Store.EpisodesForShow(r.Context(), sh.ID, false)
+	if err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not load episodes"))
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"episodes": publicEpisodes(eps)})
+}
+
 func (a *App) updateShow(w http.ResponseWriter, r *http.Request) {
 	id, _ := authn.FromContext(r.Context())
 	sh, err := a.ownsShow(r.Context(), id, chi.URLParam(r, "id"))
