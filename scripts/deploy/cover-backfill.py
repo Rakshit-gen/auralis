@@ -344,7 +344,7 @@ def self_test() -> None:
             swatch.putpixel((x, y), (30, 120, 200))
     hexc = accent_color(swatch)
     assert hexc.startswith("#") and len(hexc) == 7, hexc
-    r, g, b = (int(hexc[j : j + 2], 16) for j in (1, 3, 5))
+    r, b = int(hexc[1:3], 16), int(hexc[5:7], 16)
     assert b > r and b > 80, hexc  # picked the blue block, not the near-black
 
     print("self-test ok")
