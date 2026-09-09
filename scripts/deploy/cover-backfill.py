@@ -78,7 +78,6 @@ def load_env() -> dict[str, str]:
 # ----------------------------------------------------------------------- prompt
 def build_prompt(show: dict) -> str:
     """A deterministic image prompt from the show's own metadata."""
-    title = (show.get("title") or "an untitled series").strip()
     synopsis = " ".join((show.get("synopsis") or "").split())
     if len(synopsis) > 240:
         synopsis = synopsis[:240].rsplit(" ", 1)[0] + "..."
@@ -86,7 +85,9 @@ def build_prompt(show: dict) -> str:
     tags = [t for t in (show.get("tags") or []) if isinstance(t, str)][:3]
     mood = ", ".join(genres + tags) or "drama"
 
-    parts = [f'"{title}", {mood}']
+    # No title in the prompt: a quoted title makes SD letter it onto the cover
+    # and it comes out garbled. Mood plus synopsis carry the image.
+    parts = [mood]
     if synopsis:
         parts.append(synopsis)
     parts.append(STYLE)
@@ -208,7 +209,7 @@ class Renderer:
             width=w,
             height=h,
             num_inference_steps=self.steps,
-            guidance_scale=1.5,
+            guidance_scale=2.0,
             generator=gen,
         ).images[0]
         return image
@@ -319,7 +320,8 @@ def self_test() -> None:
         "tags": ["slow burn", "atmospheric", "unreliable narrator"],
     }
     p = build_prompt(show)
-    assert p.startswith('"The Long Room", Mystery, Horror, slow burn'), p
+    assert p.startswith("Mystery, Horror, slow burn"), p
+    assert "The Long Room" not in p, p
     assert "..." in p and "no text" in p, p
     assert seed_for(show["id"]) == seed_for(show["id"]) and 0 <= seed_for(show["id"]) < 2**31
 
@@ -356,7 +358,7 @@ def main() -> None:
     ap.add_argument("--content-url", default="https://auralis-content.onrender.com")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--only-show", action="append", default=[])
-    ap.add_argument("--steps", type=int, default=6)
+    ap.add_argument("--steps", type=int, default=8)
     ap.add_argument("--width", type=int, default=GEN_W)
     ap.add_argument("--height", type=int, default=GEN_H)
     ap.add_argument("--sleep", type=float, default=2.0, help="pause between shows, seconds")
