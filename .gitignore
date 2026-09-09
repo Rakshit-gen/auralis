@@ -46,3 +46,6 @@ out/
 
 # Piper TTS binary and voice models (scripts/piper-setup.sh)
 .piper/
+
+# local Stable Diffusion venv for the cover backfill (scripts/img-setup.sh)
+.imggen/
