@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import {
   useBookmarks,
   useContinueListening,
+  useCoverLookup,
   useFollows,
   useHistory,
   useLikes,
@@ -45,6 +46,9 @@ export function LibraryView({ initial }: { initial: Tab }) {
   const likes = useLikes();
   const history = useHistory();
   const follows = useFollows();
+  const covers = useCoverLookup();
+  const thumb = (showId: string) =>
+    coverStyle(covers.get(showId)?.accent || "#d9963f", showId, covers.get(showId)?.cover);
 
   return (
     <div className="container-page">
@@ -87,7 +91,7 @@ export function LibraryView({ initial }: { initial: Tab }) {
             <div className="space-y-2">
               {bookmarks.data.map((b) => (
                 <div key={b.episode_id} className="surface flex items-center gap-3 p-3">
-                  <div className="h-11 w-11 shrink-0 rounded-lg" style={coverStyle("#d9963f", b.show_id)} />
+                  <div className="h-11 w-11 shrink-0 rounded-lg" style={thumb(b.show_id)} />
                   <EpisodeTitle id={b.episode_id} showId={b.show_id} />
                   {b.note && <span className="hidden text-xs text-bone-400 sm:block">{b.note}</span>}
                 </div>
@@ -105,7 +109,7 @@ export function LibraryView({ initial }: { initial: Tab }) {
             <div className="space-y-2">
               {likes.data.map((l) => (
                 <div key={`${l.target_type}-${l.target_id}`} className="surface flex items-center gap-3 p-3">
-                  <div className="h-11 w-11 shrink-0 rounded-lg" style={coverStyle("#d9963f", l.show_id)} />
+                  <div className="h-11 w-11 shrink-0 rounded-lg" style={thumb(l.show_id)} />
                   {l.target_type === "episode" ? (
                     <EpisodeTitle id={l.target_id} showId={l.show_id} />
                   ) : (
@@ -129,7 +133,7 @@ export function LibraryView({ initial }: { initial: Tab }) {
             <div className="space-y-2">
               {history.data.map((h) => (
                 <div key={h.episode_id} className="surface flex items-center gap-3 p-3">
-                  <div className="h-11 w-11 shrink-0 rounded-lg" style={coverStyle("#d9963f", h.show_id)} />
+                  <div className="h-11 w-11 shrink-0 rounded-lg" style={thumb(h.show_id)} />
                   <EpisodeTitle id={h.episode_id} showId={h.show_id} />
                   <div className="text-right text-xs text-bone-400">
                     <p>{h.completed ? "Finished" : `${formatDuration(h.position_sec)} in`}</p>
@@ -154,7 +158,7 @@ export function LibraryView({ initial }: { initial: Tab }) {
                   href={`/shows/${f.show_id}`}
                   className="surface flex items-center gap-3 p-3 hover:border-amber/50"
                 >
-                  <div className="h-12 w-12 shrink-0 rounded-lg" style={coverStyle("#d9963f", f.show_id)} />
+                  <div className="h-12 w-12 shrink-0 rounded-lg" style={thumb(f.show_id)} />
                   <span className="font-display text-bone-100">Followed show</span>
                 </Link>
               ))}

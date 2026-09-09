@@ -52,6 +52,19 @@ export function useShows(params: ShowQuery = {}) {
   });
 }
 
+/**
+ * show_id -> cover art, from the cached catalog. For the small thumbnails in
+ * the library and continue-listening rows, which only carry a show_id.
+ */
+export function useCoverLookup() {
+  const { data } = useShows({ limit: 100 });
+  const m = new Map<string, { cover: string | null; accent: string | null }>();
+  for (const s of data?.shows ?? []) {
+    m.set(s.id, { cover: s.cover_image_url || null, accent: s.accent_color || null });
+  }
+  return m;
+}
+
 export function useShow(slug: string) {
   return useQuery({
     queryKey: ["show", slug],

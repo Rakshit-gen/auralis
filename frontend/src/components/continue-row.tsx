@@ -7,10 +7,12 @@ import { usePlayer } from "@/stores/player";
 import { ProgressBar } from "@/components/ui";
 import { PlayIcon } from "@/components/icons";
 import { formatDuration, coverStyle } from "@/lib/format";
+import { useCoverLookup } from "@/lib/hooks";
 import type { ContinueItem, Episode } from "@/lib/types";
 
 export function ContinueRow({ item }: { item: ContinueItem }) {
   const authorize = usePlayer((s) => s.playNow);
+  const cover = useCoverLookup().get(item.show_id);
 
   const { data: episode } = useQuery({
     queryKey: ["episode", item.episode_id],
@@ -33,7 +35,11 @@ export function ContinueRow({ item }: { item: ContinueItem }) {
 
   return (
     <div className="surface flex items-center gap-3 p-3">
-      <div className="h-14 w-14 shrink-0 rounded-lg" style={coverStyle("#d9963f", item.show_id)} aria-hidden />
+      <div
+        className="h-14 w-14 shrink-0 rounded-lg"
+        style={coverStyle(cover?.accent || "#d9963f", item.show_id, cover?.cover)}
+        aria-hidden
+      />
       <div className="min-w-0 flex-1">
         <p className="truncate font-display text-bone-100">{episode?.title ?? "Loading episode"}</p>
         <p className="text-xs text-bone-400">
