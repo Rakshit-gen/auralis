@@ -179,6 +179,42 @@ func (a *App) internalUpdateEpisode(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, updated)
 }
 
+type internalUpdateShowReq struct {
+	CoverImageURL *string `json:"cover_image_url"`
+	AccentColor   *string `json:"accent_color"`
+}
+
+// internalUpdateShow lets an offline job attach display metadata (a generated
+// cover, its dominant accent colour) to a show whatever its publish state. The
+// public PATCH /shows/{id} only accepts draft or rejected shows; the seeded
+// catalogue is already published, so the cover backfill needs this route.
+func (a *App) internalUpdateShow(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req internalUpdateShowReq
+	if err := httpx.Decode(w, r, &req); err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	ctx := r.Context()
+	if _, err := a.Store.ShowByID(ctx, id); err != nil {
+		httpx.Error(w, r, errcodes.Missing("show not found"))
+		return
+	}
+	patch := map[string]any{}
+	if req.CoverImageURL != nil {
+		patch["cover_image_url"] = *req.CoverImageURL
+	}
+	if req.AccentColor != nil && strings.TrimSpace(*req.AccentColor) != "" {
+		patch["accent_color"] = *req.AccentColor
+	}
+	updated, err := a.Store.UpdateShow(ctx, id, patch)
+	if err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not update show"))
+		return
+	}
+	httpx.JSON(w, http.StatusOK, updated)
+}
+
 func (a *App) ensureSeason(ctx context.Context, showID string, number int) (Season, error) {
 	return a.Store.EnsureSeason(ctx, showID, number)
 }

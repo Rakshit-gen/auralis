@@ -87,6 +87,7 @@ func (a *App) Routes(r chi.Router) {
 		r.Use(authn.ServiceToken(a.ServiceToken))
 		r.Post("/internal/authoring/shows", a.internalCreateShow)
 		r.Post("/internal/authoring/episodes", a.internalCreateEpisode)
+		r.Patch("/internal/authoring/shows/{id}", a.internalUpdateShow)
 		r.Patch("/internal/authoring/episodes/{id}", a.internalUpdateEpisode)
 	})
 }
