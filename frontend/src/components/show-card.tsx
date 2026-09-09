@@ -13,7 +13,7 @@ export function ShowCard({ show, reason }: { show: Show; reason?: string }) {
     >
       <div
         className="relative aspect-[3/4] overflow-hidden rounded-xl border border-ink-700 shadow-lift transition duration-200 group-hover:-translate-y-1 group-hover:border-ink-600"
-        style={coverStyle(show.accent_color || "#d9963f", show.id)}
+        style={coverStyle(show.accent_color || "#d9963f", show.id, show.cover_image_url)}
       >
         <div className="absolute inset-0 bg-grain opacity-[0.06]" />
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink-950 via-ink-950/60 to-transparent p-3">

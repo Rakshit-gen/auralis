@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCount, formatDuration, formatRuntime, relativeTime } from "@/lib/format";
+import { coverStyle, formatCount, formatDuration, formatRuntime, relativeTime } from "@/lib/format";
 
 describe("formatDuration", () => {
   it("shows m:ss under an hour", () => {
@@ -30,6 +30,24 @@ describe("formatCount", () => {
     expect(formatCount(1500)).toBe("1.5k");
     expect(formatCount(23000)).toBe("23k");
     expect(formatCount(2_400_000)).toBe("2.4M");
+  });
+});
+
+describe("coverStyle", () => {
+  it("uses the gradient alone when there is no image", () => {
+    const s = coverStyle("#c98a3c", "the-long-room");
+    expect(s.backgroundImage).toMatch(/^linear-gradient\(/);
+    expect(s.backgroundSize).toBeUndefined();
+  });
+  it("layers a real image over the gradient", () => {
+    const s = coverStyle("#c98a3c", "the-long-room", "https://cdn.example/covers/shows/x.webp");
+    expect(s.backgroundImage).toBe(
+      'url("https://cdn.example/covers/shows/x.webp"), linear-gradient(150deg, #c98a3c 0%, hsl(208 30% 12%) 55%, #0a0908 100%)',
+    );
+    expect(s.backgroundSize).toBe("cover");
+  });
+  it("treats empty string as no image", () => {
+    expect(coverStyle("#c98a3c", "x", "").backgroundSize).toBeUndefined();
   });
 });
 

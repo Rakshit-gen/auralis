@@ -35,11 +35,18 @@ export function relativeTime(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString();
 }
 
-// Deterministic cover gradient from a show's accent color and id, so the catalog
-// has art without shipping copyrighted images.
-export function coverStyle(accent: string, seed: string): React.CSSProperties {
+// Cover art for a show. When it has a real generated image we use that; without
+// one we fall back to a deterministic gradient from the accent color and seed so
+// the catalog still has art. The gradient stays underneath as a load fallback.
+export function coverStyle(accent: string, seed: string, image?: string | null): React.CSSProperties {
   const hue = [...seed].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
-  return {
-    backgroundImage: `linear-gradient(150deg, ${accent} 0%, hsl(${hue} 30% 12%) 55%, #0a0908 100%)`,
-  };
+  const gradient = `linear-gradient(150deg, ${accent} 0%, hsl(${hue} 30% 12%) 55%, #0a0908 100%)`;
+  if (image) {
+    return {
+      backgroundImage: `url(${JSON.stringify(image)}), ${gradient}`,
+      backgroundSize: "cover",
+      backgroundPosition: "center",
+    };
+  }
+  return { backgroundImage: gradient };
 }
