@@ -160,7 +160,10 @@ export function useFeed() {
 }
 
 export function useTrending() {
-  return useQuery({
+  // The recommendation service keeps its own slim show table with no cover art,
+  // so fold in cover_image_url and accent_color from the catalog by slug.
+  const catalog = useShows({ limit: 100 });
+  const q = useQuery({
     queryKey: ["trending"],
     queryFn: () =>
       api<{ items: { show_id: string; title: string; slug: string; plays: number }[] }>(
@@ -168,6 +171,15 @@ export function useTrending() {
         { auth: false },
       ).then((r) => r.items),
   });
+  const bySlug = new Map((catalog.data?.shows ?? []).map((s) => [s.slug, s]));
+  return {
+    ...q,
+    data: q.data?.map((t) => ({
+      ...t,
+      cover_image_url: bySlug.get(t.slug)?.cover_image_url ?? null,
+      accent_color: bySlug.get(t.slug)?.accent_color ?? null,
+    })),
+  };
 }
 
 export function useSimilar(showId: string) {

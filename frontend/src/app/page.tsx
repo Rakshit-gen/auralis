@@ -65,7 +65,14 @@ export default function Landing() {
           <p className="eyebrow mb-3">Trending right now</p>
           <div className="space-y-2">
             {(trending ?? []).slice(0, 6).map((t) => (
-              <ShowCardCompact key={t.show_id} title={t.title} slug={t.slug} meta={`${t.plays} plays`} />
+              <ShowCardCompact
+                key={t.show_id}
+                title={t.title}
+                slug={t.slug}
+                meta={`${t.plays} plays`}
+                cover={t.cover_image_url}
+                accent={t.accent_color}
+              />
             ))}
             {!trending?.length && (
               <p className="px-1 py-8 text-center text-sm text-bone-400">

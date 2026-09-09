@@ -44,16 +44,20 @@ export function ShowCardCompact({
   title,
   slug,
   meta,
+  cover,
+  accent,
 }: {
   title: string;
   slug: string;
   meta?: string;
+  cover?: string | null;
+  accent?: string | null;
 }) {
   return (
     <Link href={`/shows/${slug}`} className="surface-interactive flex items-center gap-3 p-3">
       <div
         className="h-12 w-12 shrink-0 rounded-lg"
-        style={coverStyle("#d9963f", slug)}
+        style={coverStyle(accent || "#d9963f", slug, cover)}
         aria-hidden
       />
       <div className="min-w-0">

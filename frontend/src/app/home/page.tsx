@@ -84,7 +84,13 @@ function HomeInner() {
               <div key={t.show_id} className="flex items-center gap-3">
                 <span className="w-6 text-right font-display text-lg text-ink-500">{i + 1}</span>
                 <div className="flex-1">
-                  <ShowCardCompact title={t.title} slug={t.slug} meta={`${t.plays} plays`} />
+                  <ShowCardCompact
+                    title={t.title}
+                    slug={t.slug}
+                    meta={`${t.plays} plays`}
+                    cover={t.cover_image_url}
+                    accent={t.accent_color}
+                  />
                 </div>
               </div>
             ))}

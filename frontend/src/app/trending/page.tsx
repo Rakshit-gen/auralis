@@ -26,7 +26,11 @@ export default function TrendingPage() {
               className="surface flex items-center gap-4 p-4 transition hover:border-amber/50"
             >
               <span className="w-8 text-center font-display text-2xl text-ink-500">{i + 1}</span>
-              <div className="h-12 w-12 shrink-0 rounded-lg" style={coverStyle("#d9963f", t.show_id)} aria-hidden />
+              <div
+                className="h-12 w-12 shrink-0 rounded-lg"
+                style={coverStyle(t.accent_color || "#d9963f", t.slug, t.cover_image_url)}
+                aria-hidden
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display text-lg text-bone-100">{t.title}</p>
                 <p className="text-xs text-bone-400">{formatCount(t.plays)} plays</p>
