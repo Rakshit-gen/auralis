@@ -5,7 +5,7 @@
 # .imggen/bin/python.
 #
 # Re-run any time; every step is idempotent. The first run installs ~3 GB of
-# wheels. Model weights (~7 GB) are pulled on the first backfill run and cached
+# wheels. Model weights (~2 GB) are pulled on the first backfill run and cached
 # under ~/.cache/huggingface.
 set -euo pipefail
 

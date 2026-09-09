@@ -4,9 +4,9 @@
 The frontend fakes cover art with a per-show gradient (coverStyle in
 frontend/src/lib/format.ts). This script gives the seeded catalogue actual
 artwork: for each published show it builds a prompt from the show's title,
-synopsis and genres, renders a portrait with a local Stable Diffusion XL model
-(SDXL + the SDXL-Lightning 4-step LoRA, on Apple's MPS backend), crops it to
-3:4, encodes a small WebP, uploads it to the media bucket under
+synopsis and genres, renders a portrait with a local Stable Diffusion model
+(DreamShaper 8 + the LCM LoRA, six steps, on Apple's MPS backend), scales it
+to 3:4, encodes a small WebP, uploads it to the media bucket under
 covers/shows/<show_id>.webp, and PATCHes the show with the public URL plus a
 dominant accent colour pulled from the image.
 
@@ -21,8 +21,8 @@ unless --force, and an already-uploaded WebP is reused rather than regenerated.
 Run scripts/img-setup.sh once first. Reads S3 and gateway settings from
 .env.deploy (repo root); model weights are cached under ~/.cache/huggingface.
 
-Machine load: generation is bursty (a few seconds of GPU per image at 4 steps),
-never sustained. --sleep adds a gap between shows; --limit caps a run.
+Machine load: generation is bursty (a few seconds of GPU per image at six
+steps), never sustained. --sleep adds a gap between shows; --limit caps a run.
 """
 
 from __future__ import annotations
@@ -42,14 +42,14 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 ENV_DEPLOY = ROOT / ".env.deploy"
 
-# SDXL base + ByteDance's 4-step Lightning LoRA: near-SDXL quality at 4 steps
-# with classifier-free guidance off, which is what keeps this feasible on a
-# 16 GB machine.
-BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
-LIGHTNING_REPO = "ByteDance/SDXL-Lightning"
-LIGHTNING_LORA = "sdxl_lightning_4step_lora.safetensors"
+# DreamShaper 8 (an SD 1.5 illustration finetune) + the LCM LoRA: a ~2 GB UNet
+# that runs in a few seconds per image at six steps, which keeps this within a
+# 16 GB machine's memory. SDXL was tried first and swapped the machine to a
+# halt at this resolution.
+BASE_MODEL = "Lykon/dreamshaper-8"
+LCM_LORA = "latent-consistency/lcm-lora-sdv1-5"
 
-GEN_W, GEN_H = 832, 1216  # SDXL-friendly portrait, cropped to 3:4 after
+GEN_W, GEN_H = 576, 768  # 3:4 already, only upscaled afterwards
 OUT_W, OUT_H = 768, 1024  # stored cover, 3:4
 WEBP_QUALITY = 82
 
@@ -168,7 +168,7 @@ def object_exists(mc, bucket: str, key: str) -> bool:
 
 # ------------------------------------------------------------------- generation
 class Renderer:
-    """Lazily loads SDXL + the Lightning LoRA on first use."""
+    """Lazily loads DreamShaper 8 + the LCM LoRA on first use."""
 
     def __init__(self, steps: int, size: tuple[int, int]) -> None:
         self.steps = steps
@@ -177,21 +177,21 @@ class Renderer:
 
     def _load(self) -> None:
         import torch
-        from diffusers import DiffusionPipeline, EulerDiscreteScheduler
-        from huggingface_hub import hf_hub_download
+        from diffusers import LCMScheduler, StableDiffusionPipeline
 
-        print("loading SDXL + SDXL-Lightning (first run downloads ~7 GB)", flush=True)
-        pipe = DiffusionPipeline.from_pretrained(
-            BASE_MODEL, torch_dtype=torch.float16, variant="fp16", use_safetensors=True
+        print("loading DreamShaper 8 + LCM LoRA (first run downloads ~2 GB)", flush=True)
+        pipe = StableDiffusionPipeline.from_pretrained(
+            BASE_MODEL,
+            dtype=torch.float16,
+            safety_checker=None,
+            requires_safety_checker=False,
         )
-        pipe.load_lora_weights(hf_hub_download(LIGHTNING_REPO, LIGHTNING_LORA))
+        pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+        pipe.load_lora_weights(LCM_LORA)
         pipe.fuse_lora()
-        pipe.scheduler = EulerDiscreteScheduler.from_config(
-            pipe.scheduler.config, timestep_spacing="trailing"
-        )
         pipe.to("mps")
         pipe.enable_attention_slicing()
-        pipe.enable_vae_slicing()
+        pipe.vae.enable_slicing()
         pipe.set_progress_bar_config(disable=True)
         self.pipe = pipe
 
@@ -208,7 +208,7 @@ class Renderer:
             width=w,
             height=h,
             num_inference_steps=self.steps,
-            guidance_scale=0.0,
+            guidance_scale=1.5,
             generator=gen,
         ).images[0]
         return image
@@ -356,7 +356,7 @@ def main() -> None:
     ap.add_argument("--content-url", default="https://auralis-content.onrender.com")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--only-show", action="append", default=[])
-    ap.add_argument("--steps", type=int, default=4)
+    ap.add_argument("--steps", type=int, default=6)
     ap.add_argument("--width", type=int, default=GEN_W)
     ap.add_argument("--height", type=int, default=GEN_H)
     ap.add_argument("--sleep", type=float, default=2.0, help="pause between shows, seconds")

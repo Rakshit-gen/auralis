@@ -293,7 +293,7 @@ studio already have real audio and are untouched.
 The catalogue ships with no real cover art; the web client draws a per-show
 gradient instead. `scripts/deploy/cover-backfill.py` replaces that with real
 artwork: for every published show it builds a prompt from the title, synopsis
-and genres, renders a portrait with a local SDXL + SDXL-Lightning model on
+and genres, renders a portrait with a local DreamShaper 8 + LCM LoRA model on
 Apple's MPS backend, stores a small WebP under `covers/shows/<id>.webp` in the
 media bucket, and PATCHes the show with the public URL and a dominant accent
 colour.
@@ -306,8 +306,8 @@ scripts/img-setup.sh                                          # .imggen venv, on
 ```
 
 It needs `S3_PUBLIC_BASE_URL` set (covers are served straight from the public
-media domain). The first render downloads ~7 GB of weights to
-`~/.cache/huggingface`; after that it is a few seconds of GPU per image at four
+media domain). The first render downloads ~2 GB of weights to
+`~/.cache/huggingface`; after that it is a few seconds of GPU per image at six
 steps. It is idempotent (a show that already has `cover_image_url` is skipped
 unless `--force`, and an already-uploaded WebP is reused), and `--limit`,
 `--only-show` and `--sleep` scope and pace a run. Shows created through the
