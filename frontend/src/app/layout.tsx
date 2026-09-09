@@ -7,6 +7,7 @@ import { OceanWaves } from "@/components/ocean-waves";
 import { AudioEngine } from "@/components/player/audio-engine";
 import { PlayerBar } from "@/components/player/player-bar";
 import { ShortcutsHelp } from "@/components/player/shortcuts";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: { default: "Auralis", template: "%s · Auralis" },
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ShortcutsHelp />
           <AuthGate />
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
