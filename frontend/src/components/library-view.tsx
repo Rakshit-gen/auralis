@@ -59,7 +59,7 @@ export function LibraryView({ initial }: { initial: Tab }) {
         {TABS.map((t) => (
           <Link
             key={t.key}
-            href={`/library/${t.key === "continue" ? "" : t.key}`}
+            href={t.key === "continue" ? "/library" : `/library/${t.key}`}
             className={`shrink-0 border-b-2 px-4 py-2 text-sm transition ${
               initial === t.key
                 ? "border-amber text-amber-soft"
