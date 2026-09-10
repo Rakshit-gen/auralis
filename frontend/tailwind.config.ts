@@ -22,6 +22,7 @@ const config: Config = {
           200: "#e4dccb",
           300: "#c9bda4",
           400: "#a89a7d",
+          500: "#877a5f",
         },
         // The lantern. A single warm accent against the cold water, used for the
         // primary action and anything that should feel lit from within.
