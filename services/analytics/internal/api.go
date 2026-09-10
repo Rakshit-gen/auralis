@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -9,8 +10,21 @@ import (
 	"github.com/auralis/platform/errcodes"
 	"github.com/auralis/platform/httpx"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// lookupErr maps a single-row lookup error to a response: a 404 only when the
+// row is genuinely absent, a 500 for anything else. Collapsing every error to
+// "no analytics yet" hid a malformed id (Postgres 22P02) and DB outages behind
+// a 404 that never paged anyone.
+func lookupErr(w http.ResponseWriter, r *http.Request, err error, notFoundMsg string) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Error(w, r, errcodes.Missing(notFoundMsg))
+		return
+	}
+	httpx.Error(w, r, errcodes.Unexpected("lookup failed"))
+}
 
 // API serves the analytics read endpoints. Aggregates only, never raw events.
 type API struct{ pool *pgxpool.Pool }
@@ -144,7 +158,7 @@ func (a *API) showPerformance(w http.ResponseWriter, r *http.Request) {
 		 FROM show_stats WHERE show_id = $1`, id).
 		Scan(&title, &plays, &completes, &secs, &likes, &bookmarks, &follows)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("no analytics for this show yet"))
+		lookupErr(w, r, err, "no analytics for this show yet")
 		return
 	}
 	var listeners int
@@ -191,7 +205,7 @@ func (a *API) episodePerformance(w http.ResponseWriter, r *http.Request) {
 		 FROM episode_stats WHERE episode_id = $1`, id).
 		Scan(&showID, &plays, &completes, &skips, &secs, &ratioSum, &n)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("no analytics for this episode yet"))
+		lookupErr(w, r, err, "no analytics for this episode yet")
 		return
 	}
 	avgCompletion := 0.0
