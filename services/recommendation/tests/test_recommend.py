@@ -127,6 +127,49 @@ async def test_similar_uses_content_and_co_listen(sm):
     assert c not in ids[:1]
 
 
+@pytest.mark.asyncio
+async def test_dedupe_is_atomic_with_projection_writes(sm):
+    handler = Handler(sm)
+    show = str(uuid.uuid4())
+    user = str(uuid.uuid4())
+    await publish_show(handler, show, ["genre-x"])
+
+    async def signal_plays() -> int:
+        async with sm() as session:
+            row = await session.execute(
+                text("SELECT plays FROM reco_show_signals WHERE show_id = :s"), {"s": show}
+            )
+            return row.scalar_one()
+
+    async def event_seen(eid: str) -> bool:
+        async with sm() as session:
+            return await Repo(session).event_seen("recommendation-service-2", eid)
+
+    # A handler that raises after a partial write must roll back both the
+    # dedupe claim and the write.
+    broken = ev("playback.play", {"user_id": user, "show_id": show})
+    orig = handler._dispatch
+
+    async def boom(repo, et, p):
+        await repo.bump_signal(show, plays=1)
+        raise RuntimeError("handler blew up after a partial write")
+
+    handler._dispatch = boom
+    with pytest.raises(RuntimeError):
+        await handler.handle(broken)
+    handler._dispatch = orig
+
+    assert await signal_plays() == 0, "partial write was not rolled back"
+    assert not await event_seen(broken.event_id), "event marked processed despite failure"
+
+    # Reprocessing the same event id now succeeds and applies exactly once.
+    good = ev("playback.play", {"user_id": user, "show_id": show})
+    good.event_id = broken.event_id
+    await handler.handle(good)
+    await handler.handle(good)  # duplicate delivery
+    assert await signal_plays() == 1
+
+
 def test_metric_math():
     recommended = ["x", "a", "y", "b"]
     relevant = {"a", "b"}
