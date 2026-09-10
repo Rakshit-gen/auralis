@@ -18,6 +18,7 @@ import (
 	"github.com/auralis/platform/outbox"
 	"github.com/auralis/platform/telemetry"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -53,8 +54,15 @@ func (a *App) BootstrapAdmin(ctx context.Context, email, password, displayName s
 	existing, err := a.Store.UserByEmailNorm(ctx, norm)
 	if err == nil {
 		if !existing.HasAdmin() {
-			_, e := a.Store.SetRoles(ctx, existing.ID, appendRole(existing.Roles, authn.RoleAdmin))
-			return e
+			tx, err := a.Store.Pool().Begin(ctx)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback(ctx)
+			if _, e := a.Store.SetRoles(ctx, tx, existing.ID, appendRole(existing.Roles, authn.RoleAdmin)); e != nil {
+				return e
+			}
+			return tx.Commit(ctx)
 		}
 		return nil
 	}
@@ -415,9 +423,9 @@ func (a *App) setRoles(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	a.mutateUser(w, r, func(ctx context.Context) (User, string, map[string]any) {
-		u, e := a.Store.SetRoles(ctx, chi.URLParam(r, "id"), roles)
-		return u, "user.roles_changed", map[string]any{"user_id": u.ID, "roles": roles, "err": e}
+	a.mutateUser(w, r, "user.roles_changed", func(ctx context.Context, tx pgx.Tx) (User, map[string]any, error) {
+		u, e := a.Store.SetRoles(ctx, tx, chi.URLParam(r, "id"), roles)
+		return u, map[string]any{"user_id": u.ID, "roles": roles}, e
 	})
 }
 
@@ -433,35 +441,42 @@ func (a *App) setStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.BadRequest("status must be active or suspended"))
 		return
 	}
-	a.mutateUser(w, r, func(ctx context.Context) (User, string, map[string]any) {
-		u, e := a.Store.SetStatus(ctx, chi.URLParam(r, "id"), req.Status)
-		return u, "user.status_changed", map[string]any{"user_id": u.ID, "status": req.Status, "err": e}
+	a.mutateUser(w, r, "user.status_changed", func(ctx context.Context, tx pgx.Tx) (User, map[string]any, error) {
+		u, e := a.Store.SetStatus(ctx, tx, chi.URLParam(r, "id"), req.Status)
+		return u, map[string]any{"user_id": u.ID, "status": req.Status}, e
 	})
 }
 
-// mutateUser runs an admin mutation, emits the resulting event via the outbox in
-// its own transaction is not needed here since the mutation already committed;
-// instead we enqueue through a short transaction.
-func (a *App) mutateUser(w http.ResponseWriter, r *http.Request, fn func(context.Context) (User, string, map[string]any)) {
+// mutateUser applies an admin mutation and enqueues its outbox event in a single
+// transaction, so the state change and the event the user service consumes
+// either both land or neither does.
+func (a *App) mutateUser(w http.ResponseWriter, r *http.Request, eventType string, fn func(context.Context, pgx.Tx) (User, map[string]any, error)) {
 	ctx := r.Context()
-	user, eventType, payload := fn(ctx)
-	if e, ok := payload["err"].(error); ok && e != nil {
-		if e == ErrNotFound {
+	tx, err := a.Store.Pool().Begin(ctx)
+	if err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("database unavailable"))
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	user, payload, err := fn(ctx, tx)
+	if err != nil {
+		if err == ErrNotFound {
 			httpx.Error(w, r, errcodes.Missing("user not found"))
 			return
 		}
 		httpx.Error(w, r, errcodes.Unexpected("could not update user"))
 		return
 	}
-	delete(payload, "err")
 
-	tx, err := a.Store.Pool().Begin(ctx)
-	if err == nil {
-		defer tx.Rollback(ctx)
-		env, _ := envelope.New(eventType, 1, service, logging.FromContext(ctx).CorrelationID, "", payload)
-		if outbox.Enqueue(ctx, tx, kafkax.TopicUserEvents, user.ID, env) == nil {
-			_ = tx.Commit(ctx)
-		}
+	env, _ := envelope.New(eventType, 1, service, logging.FromContext(ctx).CorrelationID, "", payload)
+	if err := outbox.Enqueue(ctx, tx, kafkax.TopicUserEvents, user.ID, env); err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not record user event"))
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not update user"))
+		return
 	}
 	httpx.JSON(w, http.StatusOK, toPublic(user))
 }

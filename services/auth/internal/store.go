@@ -117,21 +117,23 @@ func (s *Store) UpdatePassword(ctx context.Context, userID, newHash string) erro
 	return tx.Commit(ctx)
 }
 
-func (s *Store) SetRoles(ctx context.Context, userID string, roles []string) (User, error) {
-	return s.scanUserRow(ctx,
+// SetRoles and SetStatus run inside the caller's transaction so the mutation
+// and the outbox event it produces commit together.
+func (s *Store) SetRoles(ctx context.Context, tx pgx.Tx, userID string, roles []string) (User, error) {
+	return scanUserRow(ctx, tx,
 		`UPDATE users SET roles = $2, updated_at = now() WHERE id = $1
 		 RETURNING id, email, password_hash, roles, status, display_name, created_at`, userID, roles)
 }
 
-func (s *Store) SetStatus(ctx context.Context, userID, status string) (User, error) {
-	return s.scanUserRow(ctx,
+func (s *Store) SetStatus(ctx context.Context, tx pgx.Tx, userID, status string) (User, error) {
+	return scanUserRow(ctx, tx,
 		`UPDATE users SET status = $2, updated_at = now() WHERE id = $1
 		 RETURNING id, email, password_hash, roles, status, display_name, created_at`, userID, status)
 }
 
-func (s *Store) scanUserRow(ctx context.Context, q string, args ...any) (User, error) {
+func scanUserRow(ctx context.Context, tx pgx.Tx, q string, args ...any) (User, error) {
 	var u User
-	err := s.pool.QueryRow(ctx, q, args...).Scan(
+	err := tx.QueryRow(ctx, q, args...).Scan(
 		&u.ID, &u.Email, &u.PasswordHash, &u.Roles, &u.Status, &u.DisplayName, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrNotFound
