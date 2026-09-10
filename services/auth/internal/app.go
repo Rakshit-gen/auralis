@@ -344,6 +344,19 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// accountLookupErr answers a single-account read: 404 only when the row is
+// genuinely absent, 500 for anything else. Collapsing every error to "account
+// not found" hid a database outage (and a malformed id) behind a 404 that never
+// paged, even though the id here comes from a gateway-signed token and the row
+// almost always exists.
+func accountLookupErr(w http.ResponseWriter, r *http.Request, err error) {
+	if err == ErrNotFound {
+		httpx.Error(w, r, errcodes.Missing("account not found"))
+		return
+	}
+	httpx.Error(w, r, errcodes.Unexpected("account lookup failed"))
+}
+
 func (a *App) me(w http.ResponseWriter, r *http.Request) {
 	id, err := authn.MustIdentity(r.Context())
 	if err != nil {
@@ -352,7 +365,7 @@ func (a *App) me(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := a.Store.UserByID(r.Context(), id.UserID)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("account not found"))
+		accountLookupErr(w, r, err)
 		return
 	}
 	httpx.JSON(w, http.StatusOK, toPublic(user))
@@ -376,7 +389,7 @@ func (a *App) changePassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, err := a.Store.UserByID(ctx, id.UserID)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("account not found"))
+		accountLookupErr(w, r, err)
 		return
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)) != nil {
