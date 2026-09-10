@@ -4,6 +4,7 @@ package httpx
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -157,11 +158,10 @@ func Decode(w http.ResponseWriter, r *http.Request, v any) error {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		var maxErr *http.MaxBytesError
-		if strings.Contains(err.Error(), "request body too large") {
+		if errors.As(err, &maxErr) {
 			return errcodes.New(http.StatusRequestEntityTooLarge, errcodes.PayloadTooBig, "request body too large")
 		}
-		_ = maxErr
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return errcodes.BadRequest("request body is empty")
 		}
 		return errcodes.BadRequest("malformed JSON body: " + err.Error())
