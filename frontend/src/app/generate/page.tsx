@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useGenres, useLanguages } from "@/lib/hooks";
 import { SparkIcon } from "@/components/icons";
 import { LogoMark } from "@/components/logo";
-import { ProgressBar } from "@/components/ui";
+import { AnimatedButton, ProgressBar } from "@/components/ui";
 import type { GenerationJob } from "@/lib/types";
 
 const STAGES = [
@@ -264,10 +264,10 @@ function GenerateInner() {
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         <div className="space-y-2">
-          <button disabled={!canSubmit} className="btn-tide w-full sm:w-auto">
+          <AnimatedButton disabled={!canSubmit} className="w-full sm:w-auto">
             <SparkIcon className="h-4 w-4" />
             {busy ? "Starting the pipeline" : jobRunning ? "A series is being built" : "Generate the series"}
-          </button>
+          </AnimatedButton>
           {jobRunning && (
             <p className="text-xs text-bone-500">
               One series builds at a time. You can start another once this run finishes.
