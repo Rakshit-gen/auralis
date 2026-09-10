@@ -29,11 +29,15 @@ export default function Landing() {
     const onTrending = new Set((trending ?? []).map((t) => t.slug));
     return (catalog?.shows ?? []).filter((s) => !onTrending.has(s.slug));
   }, [catalog, trending]);
-  // Three of them, picked fresh each visit (shuffle is a side effect, not render).
+  // Three of them, shuffled once when the pool first arrives and then left
+  // alone — `trending`/`catalog` hand back fresh array identities on every
+  // render, so re-picking on each `pool` change would reshuffle forever.
   const [picks, setPicks] = useState<Show[]>([]);
   useEffect(() => {
-    if (pool.length) setPicks([...pool].sort(() => Math.random() - 0.5).slice(0, 3));
-  }, [pool]);
+    if (pool.length && picks.length === 0) {
+      setPicks([...pool].sort(() => Math.random() - 0.5).slice(0, 3));
+    }
+  }, [pool, picks.length]);
 
   useEffect(() => {
     if (ready && user) router.replace("/home");
