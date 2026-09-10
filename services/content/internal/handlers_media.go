@@ -84,7 +84,7 @@ func (a *App) confirmUpload(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	episodeID, key, err := a.Store.ConfirmUpload(r.Context(), req.UploadID, 0)
+	episodeID, key, err := a.Store.PendingUpload(r.Context(), req.UploadID)
 	if err != nil || episodeID != e.ID {
 		httpx.Error(w, r, errcodes.Missing("upload not found or already confirmed"))
 		return
@@ -108,7 +108,11 @@ func (a *App) confirmUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	if err := a.Store.SetEpisodeProcessing(ctx, e.ID, ProcQueued, ""); err != nil {
+	if err := a.Store.ConfirmUpload(ctx, tx, req.UploadID, size); err != nil {
+		httpx.Error(w, r, errcodes.Missing("upload not found or already confirmed"))
+		return
+	}
+	if err := a.Store.SetEpisodeProcessing(ctx, tx, e.ID, ProcQueued, ""); err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not queue processing"))
 		return
 	}

@@ -4,7 +4,9 @@ package httpx
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -92,8 +94,13 @@ func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		return strings.TrimSpace(strings.Split(xff, ",")[0])
 	}
-	h, _, _ := strings.Cut(r.RemoteAddr, ":")
-	return h
+	// net.SplitHostPort, not strings.Cut on ":", so an IPv6 RemoteAddr
+	// ([2001:db8::1]:54321) yields the address and not "[2001". Otherwise every
+	// IPv6 caller collapses onto one rate-limit bucket and one log "remote".
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 // SecurityHeaders sets conservative response headers on every route.
@@ -157,11 +164,10 @@ func Decode(w http.ResponseWriter, r *http.Request, v any) error {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		var maxErr *http.MaxBytesError
-		if strings.Contains(err.Error(), "request body too large") {
+		if errors.As(err, &maxErr) {
 			return errcodes.New(http.StatusRequestEntityTooLarge, errcodes.PayloadTooBig, "request body too large")
 		}
-		_ = maxErr
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return errcodes.BadRequest("request body is empty")
 		}
 		return errcodes.BadRequest("malformed JSON body: " + err.Error())

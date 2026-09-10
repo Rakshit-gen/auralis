@@ -181,3 +181,90 @@ func TestRegistrationThenLibraryFlow(t *testing.T) {
 		t.Fatalf("anon /me: expected 401, got %d", resp.StatusCode)
 	}
 }
+
+// TestInternalPreferencesDistinguishesNotFoundFromError guards against handing
+// recommendation fabricated defaults when the read actually failed: a missing
+// row returns defaults, a real query error returns 500.
+func TestInternalPreferencesDistinguishesNotFoundFromError(t *testing.T) {
+	srv, _ := setup(t)
+	svc := map[string]string{"X-Auralis-Service-Token": "svc"}
+	missing := "dddddddd-dddd-dddd-dddd-dddddddddddd"
+
+	resp, data := req(t, "GET", srv.URL+"/internal/users/"+missing+"/preferences", nil, svc)
+	if resp.StatusCode != 200 {
+		t.Fatalf("missing prefs: want 200 defaults, got %d %s", resp.StatusCode, data)
+	}
+
+	// A malformed id makes the query itself fail; that must not look like defaults.
+	resp, _ = req(t, "GET", srv.URL+"/internal/users/not-a-uuid/preferences", nil, svc)
+	if resp.StatusCode != 500 {
+		t.Fatalf("query error: want 500, got %d", resp.StatusCode)
+	}
+}
+
+// TestProfileLookupErrorIsNotMaskedAs404 guards the fix for getProfile /
+// getPreferences, which mapped every store error to 404. A malformed user id
+// makes Postgres reject the query (22P02): a 500, not "profile not found".
+func TestProfileLookupErrorIsNotMaskedAs404(t *testing.T) {
+	srv, _ := setup(t)
+
+	resp, _ := req(t, "GET", srv.URL+"/me/profile", nil, hdr("not-a-uuid", "USER"))
+	if resp.StatusCode != 500 {
+		t.Fatalf("malformed id profile: want 500, got %d", resp.StatusCode)
+	}
+	resp, _ = req(t, "GET", srv.URL+"/me/preferences", nil, hdr("not-a-uuid", "USER"))
+	if resp.StatusCode != 500 {
+		t.Fatalf("malformed id preferences: want 500, got %d", resp.StatusCode)
+	}
+
+	// A well-formed but unprovisioned user is still a genuine 404.
+	absent := "99999999-9999-9999-9999-999999999999"
+	resp, _ = req(t, "GET", srv.URL+"/me/profile", nil, hdr(absent, "USER"))
+	if resp.StatusCode != 404 {
+		t.Fatalf("absent profile: want 404, got %d", resp.StatusCode)
+	}
+}
+
+// TestLibraryChangeAndEventCommitTogether guards the atomic-outbox fix: a like
+// and its user.liked event land in the same transaction, and a duplicate like
+// (no state change) emits no second event.
+func TestLibraryChangeAndEventCommitTogether(t *testing.T) {
+	srv, app := setup(t)
+	ctx := context.Background()
+	user := "dddddddd-dddd-dddd-dddd-dddddddddddd"
+	show := "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+
+	if err := app.Handle(ctx, mkEvent(t, "user.registered", map[string]any{
+		"user_id": user, "email": "liker@example.com", "display_name": "Liker",
+	})); err != nil {
+		t.Fatalf("handle registered: %v", err)
+	}
+
+	count := func(q string) int {
+		var n int
+		if err := app.Store.Pool().QueryRow(ctx, q).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	likeEvents := `SELECT count(*) FROM outbox_events WHERE envelope->>'event_type' = 'user.liked'`
+
+	body := map[string]string{"type": "show", "id": show, "show_id": show}
+	if resp, data := req(t, "POST", srv.URL+"/me/likes", body, hdr(user, "USER")); resp.StatusCode != 200 {
+		t.Fatalf("add like: %d %s", resp.StatusCode, data)
+	}
+	if got := count(`SELECT count(*) FROM likes WHERE user_id = '` + user + `'`); got != 1 {
+		t.Fatalf("likes rows: want 1, got %d", got)
+	}
+	if got := count(likeEvents); got != 1 {
+		t.Fatalf("outbox rows after first like: want 1, got %d", got)
+	}
+
+	// Same like again: ON CONFLICT DO NOTHING, so no new event.
+	if resp, _ := req(t, "POST", srv.URL+"/me/likes", body, hdr(user, "USER")); resp.StatusCode != 200 {
+		t.Fatalf("duplicate like should still 200")
+	}
+	if got := count(likeEvents); got != 1 {
+		t.Fatalf("duplicate like emitted a spurious event: outbox rows = %d", got)
+	}
+}

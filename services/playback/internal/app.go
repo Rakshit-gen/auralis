@@ -233,7 +233,10 @@ func (a *App) postProgress(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	showID, durationSec := req.ShowID, req.DurationSec
-	if m, err := a.Store.EpisodeMeta(ctx, req.EpisodeID); err == nil {
+	// episodeMeta, not Store.EpisodeMeta: on a cold cache (service restart,
+	// consumer lag) the direct read misses and we would persist the event with
+	// duration_sec 0, which breaks analytics listening-time crediting.
+	if m, err := a.episodeMeta(ctx, req.EpisodeID); err == nil {
 		if showID == "" {
 			showID = m.ShowID
 		}
@@ -347,7 +350,7 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 		// show_id and never knows the real duration, which analytics needs to
 		// credit listening time on completion.
 		showID, durationSec := ev.ShowID, 0
-		if meta, merr := a.Store.EpisodeMeta(ctx, ev.EpisodeID); merr == nil {
+		if meta, merr := a.episodeMeta(ctx, ev.EpisodeID); merr == nil {
 			if showID == "" {
 				showID = meta.ShowID
 			}
@@ -360,7 +363,12 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		if ev.ClientEventID != "" {
 			fresh, err := a.Store.MarkSeen(ctx, tx, ev.ClientEventID, id.UserID)
-			if err != nil || !fresh {
+			if err != nil {
+				_ = tx.Rollback(ctx)
+				httpx.Error(w, r, errcodes.Unexpected("could not record events"))
+				return
+			}
+			if !fresh {
 				_ = tx.Rollback(ctx)
 				skipped++
 				continue

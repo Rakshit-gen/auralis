@@ -31,20 +31,22 @@ class Handler:
         self._sm = sm
 
     async def already_processed(self, consumer: str, event_id: str) -> bool:
+        # Read-only pre-check to skip the retry loop for known duplicates. The
+        # authoritative claim happens in handle() in the same transaction as the
+        # projection writes, so an event is never marked done with its effects
+        # missing (crash between the two commits, or a dead-lettered event).
         async with self._sm() as session:
-            repo = Repo(session)
-            fresh = await repo.mark_event(consumer, event_id)
-            await session.commit()
-            return not fresh
+            return await Repo(session).event_seen(consumer, event_id)
 
     async def mark_processed(self, consumer: str, event_id: str) -> None:
         return None
 
     async def handle(self, env: Envelope) -> None:
-        p = env.payload
         async with self._sm() as session:
             repo = Repo(session)
-            await self._dispatch(repo, env.event_type, p)
+            if not await repo.mark_event(CONSUMER_GROUP, env.event_id):
+                return  # already applied, or a concurrent delivery won the race
+            await self._dispatch(repo, env.event_type, env.payload)
             await session.commit()
 
     async def _dispatch(self, repo: Repo, event_type: str, p: dict) -> None:

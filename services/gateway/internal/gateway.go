@@ -16,6 +16,7 @@ import (
 	"github.com/auralis/platform/errcodes"
 	"github.com/auralis/platform/logging"
 	"github.com/auralis/platform/telemetry"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -46,6 +47,7 @@ type Gateway struct {
 	limiter        Limiter
 	rateLimit      int
 	rateWindow     time.Duration
+	trustedHops    int
 }
 
 // Limiter decides whether a request may proceed. Allow returns the remaining
@@ -64,6 +66,9 @@ type Config struct {
 	Limiter        Limiter
 	RateLimit      int
 	RateWindow     time.Duration
+	// TrustedProxyHops is the number of proxies (load balancers) that sit in
+	// front of the gateway and append to X-Forwarded-For. Defaults to 1.
+	TrustedProxyHops int
 }
 
 // New builds a Gateway.
@@ -114,6 +119,10 @@ func New(cfg Config) (*Gateway, error) {
 	}
 	g.routes = defaultRoutes()
 	g.rateLimit, g.rateWindow = cfg.RateLimit, cfg.RateWindow
+	g.trustedHops = cfg.TrustedProxyHops
+	if g.trustedHops <= 0 {
+		g.trustedHops = 1
+	}
 	if g.rateLimit == 0 {
 		g.rateLimit = 240
 	}
@@ -187,7 +196,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Rate limit: per user when known, else per client IP.
-	limitKey := "ip:" + clientIP(r)
+	limitKey := "ip:" + clientIP(r, g.trustedHops)
 	if authed {
 		limitKey = "user:" + identity.UserID
 	}
@@ -207,8 +216,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Strip any client-supplied identity headers before we set our own.
-	for _, h := range []string{"X-Auralis-User", "X-Auralis-Roles", "X-Auralis-Identity-Sig"} {
+	// Strip any client-supplied trust headers before we set our own. The
+	// service token in particular must never be forwarded from a client: it is
+	// a shared secret that grants unauthenticated service-to-service access, so
+	// a client that learned it could otherwise reach every /internal/* route.
+	for _, h := range []string{"X-Auralis-User", "X-Auralis-Roles", "X-Auralis-Identity-Sig", "X-Auralis-Service-Token"} {
 		r.Header.Del(h)
 	}
 	if authed {
@@ -227,7 +239,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 	backend.proxy.ServeHTTP(w, r)
-	telemetry.ObserveHTTP("gateway", r.Method, route.Prefix, 0, time.Since(start))
+	// httpx.RequestContext wraps w before we see it; read back the status the
+	// backend actually returned rather than reporting a constant 0.
+	status := 0
+	if ww, ok := w.(middleware.WrapResponseWriter); ok {
+		status = ww.Status()
+	}
+	telemetry.ObserveHTTP("gateway", r.Method, route.Prefix, status, time.Since(start))
 }
 
 func (g *Gateway) match(path string) (Route, bool) {

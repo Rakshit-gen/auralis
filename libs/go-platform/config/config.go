@@ -83,6 +83,9 @@ func (r *Reader) OptionalBool(key string, fallback bool) bool {
 	case "0", "false", "no", "off":
 		return false
 	default:
+		// Sibling parsers record a bad value; a silent fallback here would let a
+		// typo like RUN_CONSUMER=treu quietly disable a consumer.
+		r.missing = append(r.missing, fmt.Sprintf("%s (not a boolean: %q)", key, v))
 		return fallback
 	}
 }

@@ -209,19 +209,30 @@ func (c *Consumer) Run(ctx context.Context, handle Handler) error {
 			continue
 		}
 		telemetry.SetConsumerLag(c.cfg.Service, m.Topic, m.Partition, c.r.Lag())
-		c.process(ctx, log, m, handle)
+		if err := c.process(ctx, log, m, handle); err != nil {
+			// The message was neither handled nor dead-lettered (DLQ write
+			// failed, or we are shutting down). Leave the offset uncommitted so
+			// the group redelivers it rather than skipping it forever.
+			log.Error("message not committed, will be redelivered", "error", err.Error(), "topic", m.Topic, "offset", m.Offset)
+			if ctx.Err() != nil {
+				return nil
+			}
+			// ponytail: fixed 1s pause so a persistently unavailable DLQ does not
+			// hot-loop the partition; swap for capped backoff if it matters.
+			time.Sleep(time.Second)
+			continue
+		}
 		if err := c.r.CommitMessages(ctx, m); err != nil {
 			log.Error("commit failed", "error", err.Error(), "topic", m.Topic, "offset", m.Offset)
 		}
 	}
 }
 
-func (c *Consumer) process(ctx context.Context, log logging.Logger, m kafka.Message, handle Handler) {
+func (c *Consumer) process(ctx context.Context, log logging.Logger, m kafka.Message, handle Handler) error {
 	env, err := envelope.Parse(m.Value)
 	if err != nil {
 		log.Error("undecodable message dead-lettered", "error", err.Error(), "topic", m.Topic)
-		c.deadLetter(ctx, m, "envelope_parse_error: "+err.Error())
-		return
+		return c.deadLetter(ctx, m, "envelope_parse_error: "+err.Error())
 	}
 	l := log.With("event_id", env.EventID, "event_type", env.EventType, "correlation_id", env.CorrelationID)
 
@@ -232,7 +243,7 @@ func (c *Consumer) process(ctx context.Context, log logging.Logger, m kafka.Mess
 		} else if done {
 			l.Debug("duplicate event skipped")
 			telemetry.Count(c.cfg.Service, "kafka_consume", "duplicate")
-			return
+			return nil
 		}
 	}
 
@@ -251,7 +262,7 @@ func (c *Consumer) process(ctx context.Context, log logging.Logger, m kafka.Mess
 			}
 			select {
 			case <-ctx.Done():
-				return
+				return ctx.Err()
 			case <-time.After(backoff):
 			}
 		}
@@ -261,8 +272,7 @@ func (c *Consumer) process(ctx context.Context, log logging.Logger, m kafka.Mess
 	if lastErr != nil {
 		l.Error("event dead-lettered after retries", "error", lastErr.Error())
 		telemetry.Count(c.cfg.Service, "kafka_consume", "dead_lettered")
-		c.deadLetter(ctx, m, lastErr.Error())
-		return
+		return c.deadLetter(ctx, m, lastErr.Error())
 	}
 	if c.seen != nil {
 		if err := c.seen.MarkProcessed(ctx, c.cfg.GroupID, env.EventID); err != nil {
@@ -270,22 +280,29 @@ func (c *Consumer) process(ctx context.Context, log logging.Logger, m kafka.Mess
 		}
 	}
 	telemetry.Count(c.cfg.Service, "kafka_consume", "success")
+	return nil
 }
 
-func (c *Consumer) deadLetter(ctx context.Context, m kafka.Message, reason string) {
+func (c *Consumer) deadLetter(ctx context.Context, m kafka.Message, reason string) error {
+	// Build a fresh header slice: append(m.Headers, ...) can write into the
+	// fetched message's backing array when it has spare capacity.
+	headers := make([]kafka.Header, 0, len(m.Headers)+3)
+	headers = append(headers, m.Headers...)
+	headers = append(headers,
+		kafka.Header{Key: "dlq_reason", Value: []byte(reason)},
+		kafka.Header{Key: "dlq_origin_topic", Value: []byte(m.Topic)},
+		kafka.Header{Key: "dlq_at", Value: []byte(time.Now().UTC().Format(time.RFC3339))},
+	)
 	err := c.dlq.WriteMessages(ctx, kafka.Message{
-		Topic: m.Topic + DeadLetterSuffix,
-		Key:   m.Key,
-		Value: m.Value,
-		Headers: append(m.Headers,
-			kafka.Header{Key: "dlq_reason", Value: []byte(reason)},
-			kafka.Header{Key: "dlq_origin_topic", Value: []byte(m.Topic)},
-			kafka.Header{Key: "dlq_at", Value: []byte(time.Now().UTC().Format(time.RFC3339))},
-		),
+		Topic:   m.Topic + DeadLetterSuffix,
+		Key:     m.Key,
+		Value:   m.Value,
+		Headers: headers,
 	})
 	if err != nil {
 		logging.L(ctx).Error("failed to write to dead-letter topic", "error", err.Error(), "topic", m.Topic)
 	}
+	return err
 }
 
 // EnsureTopics creates the platform topics if they do not exist. Used by the

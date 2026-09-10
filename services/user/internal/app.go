@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/auralis/platform/outbox"
 	"github.com/auralis/platform/telemetry"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 const service = "user"
@@ -75,11 +77,22 @@ func (a *App) Routes(r chi.Router) {
 
 // --- profile / preferences ---
 
+// lookupErr answers a single-row read: 404 only when the row is genuinely
+// absent, 500 for anything else. Collapsing every error to "not found" hid a
+// DB outage and a malformed id behind a 404 that never paged.
+func lookupErr(w http.ResponseWriter, r *http.Request, err error, notFoundMsg string) {
+	if errors.Is(err, ErrNotFound) {
+		httpx.Error(w, r, errcodes.Missing(notFoundMsg))
+		return
+	}
+	httpx.Error(w, r, errcodes.Unexpected("lookup failed"))
+}
+
 func (a *App) getProfile(w http.ResponseWriter, r *http.Request) {
 	id := caller(r)
 	p, err := a.Store.Profile(r.Context(), id)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("profile not found"))
+		lookupErr(w, r, err, "profile not found")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, p)
@@ -106,7 +119,7 @@ func (a *App) updateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := a.Store.UpdateProfile(r.Context(), caller(r), req.DisplayName, req.AvatarURL, req.Bio)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("profile not found"))
+		lookupErr(w, r, err, "profile not found")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, p)
@@ -115,7 +128,7 @@ func (a *App) updateProfile(w http.ResponseWriter, r *http.Request) {
 func (a *App) getPreferences(w http.ResponseWriter, r *http.Request) {
 	p, err := a.Store.Preferences(r.Context(), caller(r))
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("preferences not found"))
+		lookupErr(w, r, err, "preferences not found")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, p)
@@ -138,15 +151,23 @@ func (a *App) updatePreferences(w http.ResponseWriter, r *http.Request) {
 	req.GenreSlugs = trimList(req.GenreSlugs, 20)
 	req.LanguageCodes = trimList(req.LanguageCodes, 10)
 
-	updated, err := a.Store.UpdatePreferences(r.Context(), req)
+	var updated Preferences
+	err := a.mutate(r.Context(), "user.preferences_changed", req.UserID,
+		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
+			var err error
+			updated, err = a.Store.UpdatePreferences(ctx, tx, req)
+			if err != nil {
+				return false, nil, err
+			}
+			return true, map[string]any{
+				"user_id": updated.UserID, "genre_slugs": updated.GenreSlugs,
+				"language_codes": updated.LanguageCodes, "explicit_ok": updated.ExplicitOK,
+			}, nil
+		})
 	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not update preferences"))
 		return
 	}
-	a.emit(r.Context(), "user.preferences_changed", caller(r), map[string]any{
-		"user_id": updated.UserID, "genre_slugs": updated.GenreSlugs,
-		"language_codes": updated.LanguageCodes, "explicit_ok": updated.ExplicitOK,
-	})
 	httpx.JSON(w, http.StatusOK, updated)
 }
 
@@ -172,30 +193,34 @@ func (a *App) addLike(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.BadRequest("id and show_id are required"))
 		return
 	}
-	added, err := a.Store.AddLike(r.Context(), caller(r), req.Type, req.ID, req.ShowID)
+	uid := caller(r)
+	err := a.mutate(r.Context(), "user.liked", uid,
+		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
+			added, err := a.Store.AddLike(ctx, tx, uid, req.Type, req.ID, req.ShowID)
+			return added, map[string]any{
+				"user_id": uid, "target_type": req.Type, "target_id": req.ID, "show_id": req.ShowID,
+			}, err
+		})
 	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not add like"))
 		return
-	}
-	if added {
-		a.emit(r.Context(), "user.liked", caller(r), map[string]any{
-			"user_id": caller(r), "target_type": req.Type, "target_id": req.ID, "show_id": req.ShowID,
-		})
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"liked": true})
 }
 
 func (a *App) removeLike(w http.ResponseWriter, r *http.Request) {
 	t, targetID := chi.URLParam(r, "type"), chi.URLParam(r, "id")
-	removed, err := a.Store.RemoveLike(r.Context(), caller(r), t, targetID)
+	uid := caller(r)
+	err := a.mutate(r.Context(), "user.unliked", uid,
+		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
+			removed, err := a.Store.RemoveLike(ctx, tx, uid, t, targetID)
+			return removed, map[string]any{
+				"user_id": uid, "target_type": t, "target_id": targetID,
+			}, err
+		})
 	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not remove like"))
 		return
-	}
-	if removed {
-		a.emit(r.Context(), "user.unliked", caller(r), map[string]any{
-			"user_id": caller(r), "target_type": t, "target_id": targetID,
-		})
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"liked": false})
 }
@@ -230,13 +255,18 @@ func (a *App) addBookmark(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.BadRequest("note must be 280 characters or fewer"))
 		return
 	}
-	if _, err := a.Store.AddBookmark(r.Context(), caller(r), req.EpisodeID, req.ShowID, req.Note); err != nil {
+	uid := caller(r)
+	err := a.mutate(r.Context(), "user.bookmarked", uid,
+		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
+			added, err := a.Store.AddBookmark(ctx, tx, uid, req.EpisodeID, req.ShowID, req.Note)
+			return added, map[string]any{
+				"user_id": uid, "episode_id": req.EpisodeID, "show_id": req.ShowID,
+			}, err
+		})
+	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not add bookmark"))
 		return
 	}
-	a.emit(r.Context(), "user.bookmarked", caller(r), map[string]any{
-		"user_id": caller(r), "episode_id": req.EpisodeID, "show_id": req.ShowID,
-	})
 	httpx.JSON(w, http.StatusOK, map[string]any{"bookmarked": true})
 }
 
@@ -263,26 +293,30 @@ func (a *App) listBookmarks(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) addFollow(w http.ResponseWriter, r *http.Request) {
 	showID := chi.URLParam(r, "showId")
-	added, err := a.Store.AddFollow(r.Context(), caller(r), showID)
+	uid := caller(r)
+	err := a.mutate(r.Context(), "user.followed", uid,
+		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
+			added, err := a.Store.AddFollow(ctx, tx, uid, showID)
+			return added, map[string]any{"user_id": uid, "show_id": showID}, err
+		})
 	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not follow show"))
 		return
-	}
-	if added {
-		a.emit(r.Context(), "user.followed", caller(r), map[string]any{"user_id": caller(r), "show_id": showID})
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"following": true})
 }
 
 func (a *App) removeFollow(w http.ResponseWriter, r *http.Request) {
 	showID := chi.URLParam(r, "showId")
-	removed, err := a.Store.RemoveFollow(r.Context(), caller(r), showID)
+	uid := caller(r)
+	err := a.mutate(r.Context(), "user.unfollowed", uid,
+		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
+			removed, err := a.Store.RemoveFollow(ctx, tx, uid, showID)
+			return removed, map[string]any{"user_id": uid, "show_id": showID}, err
+		})
 	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not unfollow show"))
 		return
-	}
-	if removed {
-		a.emit(r.Context(), "user.unfollowed", caller(r), map[string]any{"user_id": caller(r), "show_id": showID})
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"following": false})
 }
@@ -332,7 +366,19 @@ func (a *App) redeemPromo(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.BadRequest("code is required"))
 		return
 	}
-	ent, err := a.Store.RedeemPromo(r.Context(), caller(r), code)
+	uid := caller(r)
+	var ent Entitlement
+	err := a.mutate(r.Context(), "user.entitlement_changed", uid,
+		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
+			var err error
+			ent, err = a.Store.RedeemPromo(ctx, tx, uid, code)
+			if err != nil {
+				return false, nil, err
+			}
+			return true, map[string]any{
+				"user_id": ent.UserID, "plan": ent.Plan, "source": ent.Source, "expires_at": ent.ExpiresAt,
+			}, nil
+		})
 	if err != nil {
 		if err == ErrNotFound {
 			httpx.Error(w, r, errcodes.Missing("unknown promo code"))
@@ -341,9 +387,6 @@ func (a *App) redeemPromo(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.BadRequest(err.Error()))
 		return
 	}
-	a.emit(r.Context(), "user.entitlement_changed", caller(r), map[string]any{
-		"user_id": ent.UserID, "plan": ent.Plan, "source": ent.Source, "expires_at": ent.ExpiresAt,
-	})
 	telemetry.Count(service, "promo_redeem", "success")
 	httpx.JSON(w, http.StatusOK, entitlementView(ent))
 }
@@ -409,12 +452,19 @@ func (a *App) internalEntitlement(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) internalPreferences(w http.ResponseWriter, r *http.Request) {
-	p, err := a.Store.Preferences(r.Context(), chi.URLParam(r, "id"))
-	if err != nil {
-		httpx.JSON(w, http.StatusOK, Preferences{UserID: chi.URLParam(r, "id"), GenreSlugs: []string{}, LanguageCodes: []string{}, PlaybackSpeed: 1})
-		return
+	id := chi.URLParam(r, "id")
+	p, err := a.Store.Preferences(r.Context(), id)
+	switch {
+	case err == nil:
+		httpx.JSON(w, http.StatusOK, p)
+	case errors.Is(err, ErrNotFound):
+		// No preferences row yet (user hasn't set any): defaults are correct.
+		// Any other error means the DB is unreachable - returning defaults there
+		// would feed recommendation empty preferences as if they were real.
+		httpx.JSON(w, http.StatusOK, Preferences{UserID: id, GenreSlugs: []string{}, LanguageCodes: []string{}, PlaybackSpeed: 1})
+	default:
+		httpx.Error(w, r, errcodes.Unexpected("could not load preferences"))
 	}
-	httpx.JSON(w, http.StatusOK, p)
 }
 
 // --- helpers ---
@@ -424,24 +474,34 @@ func caller(r *http.Request) string {
 	return id.UserID
 }
 
-func (a *App) emit(ctx context.Context, eventType, key string, payload map[string]any) {
+// mutate runs a library change and its domain event in one transaction: fn
+// performs the write and reports whether anything actually changed plus the
+// event payload. The event is enqueued to the outbox in the same tx, so the
+// row change and the event commit together or not at all. Emitting the event
+// from a second transaction (as this used to) drops it forever if that tx
+// fails or the process dies in between, and recommendation/analytics then
+// permanently miss the change.
+func (a *App) mutate(ctx context.Context, eventType, key string,
+	fn func(context.Context, pgx.Tx) (bool, map[string]any, error)) error {
 	tx, err := a.Store.Pool().Begin(ctx)
 	if err != nil {
-		logging.L(ctx).Error("emit: begin failed", "error", err.Error())
-		return
+		return err
 	}
 	defer tx.Rollback(ctx)
-	env, err := envelope.New(eventType, 1, service, logging.FromContext(ctx).CorrelationID, "", payload)
+	changed, payload, err := fn(ctx, tx)
 	if err != nil {
-		return
+		return err
 	}
-	if err := outbox.Enqueue(ctx, tx, kafkax.TopicUserEvents, key, env); err != nil {
-		logging.L(ctx).Error("emit: enqueue failed", "error", err.Error())
-		return
+	if changed {
+		env, err := envelope.New(eventType, 1, service, logging.FromContext(ctx).CorrelationID, "", payload)
+		if err != nil {
+			return err
+		}
+		if err := outbox.Enqueue(ctx, tx, kafkax.TopicUserEvents, key, env); err != nil {
+			return err
+		}
 	}
-	if err := tx.Commit(ctx); err != nil {
-		logging.L(ctx).Error("emit: commit failed", "error", err.Error())
-	}
+	return tx.Commit(ctx)
 }
 
 func entitlementView(e Entitlement) map[string]any {

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,12 +20,25 @@ func bearer(r *http.Request) string {
 	return ""
 }
 
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.TrimSpace(strings.Split(xff, ",")[0])
+// clientIP returns the caller's address for rate limiting. Each proxy appends
+// the address it saw to the right of X-Forwarded-For, so with `hops` trusted
+// proxies in front of the gateway the real client is the hops-th entry from the
+// right. Trusting the leftmost entry (as this used to) lets any client send its
+// own X-Forwarded-For and mint a fresh rate-limit bucket per request, which
+// defeats login/registration abuse protection entirely.
+func clientIP(r *http.Request, hops int) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" && hops > 0 {
+		parts := strings.Split(xff, ",")
+		if idx := len(parts) - hops; idx >= 0 && idx < len(parts) {
+			if ip := strings.TrimSpace(parts[idx]); ip != "" {
+				return ip
+			}
+		}
 	}
-	host, _, _ := strings.Cut(r.RemoteAddr, ":")
-	return host
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }

@@ -18,6 +18,7 @@ import (
 	"github.com/auralis/platform/outbox"
 	"github.com/auralis/platform/telemetry"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -53,8 +54,15 @@ func (a *App) BootstrapAdmin(ctx context.Context, email, password, displayName s
 	existing, err := a.Store.UserByEmailNorm(ctx, norm)
 	if err == nil {
 		if !existing.HasAdmin() {
-			_, e := a.Store.SetRoles(ctx, existing.ID, appendRole(existing.Roles, authn.RoleAdmin))
-			return e
+			tx, err := a.Store.Pool().Begin(ctx)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback(ctx)
+			if _, e := a.Store.SetRoles(ctx, tx, existing.ID, appendRole(existing.Roles, authn.RoleAdmin)); e != nil {
+				return e
+			}
+			return tx.Commit(ctx)
 		}
 		return nil
 	}
@@ -184,7 +192,7 @@ func (a *App) register(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	user, err := a.Store.CreateUser(ctx, tx, email, norm, string(hash), display, []string{authn.RoleUser, authn.RoleCreator, authn.RoleAdmin})
+	user, err := a.Store.CreateUser(ctx, tx, email, norm, string(hash), display, []string{authn.RoleUser})
 	if err != nil {
 		if strings.Contains(err.Error(), "users_email_norm_key") {
 			httpx.Error(w, r, errcodes.Conflicting("an account with this email already exists"))
@@ -227,13 +235,20 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	norm := normalizeEmail(req.Email)
 	ip := clientIP(r)
 
-	if norm != "" {
-		if failed, _ := a.Store.RecentFailedLogins(ctx, norm, failWindow); failed >= maxFailed {
-			telemetry.Count(service, "login", "throttled")
-			httpx.Error(w, r, errcodes.New(http.StatusTooManyRequests, errcodes.RateLimited,
-				"too many failed attempts, try again later"))
-			return
-		}
+	// An unparseable address can never match an account. Reject it up front so
+	// we neither query for the empty string nor write empty-email rows into
+	// login_attempts (which the per-email throttle keys on).
+	if norm == "" {
+		telemetry.Count(service, "login", "failure")
+		httpx.Error(w, r, errcodes.Unauthed("email or password is incorrect"))
+		return
+	}
+
+	if failed, _ := a.Store.RecentFailedLogins(ctx, norm, failWindow); failed >= maxFailed {
+		telemetry.Count(service, "login", "throttled")
+		httpx.Error(w, r, errcodes.New(http.StatusTooManyRequests, errcodes.RateLimited,
+			"too many failed attempts, try again later"))
+		return
 	}
 
 	user, err := a.Store.UserByEmailNorm(ctx, norm)
@@ -329,6 +344,19 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// accountLookupErr answers a single-account read: 404 only when the row is
+// genuinely absent, 500 for anything else. Collapsing every error to "account
+// not found" hid a database outage (and a malformed id) behind a 404 that never
+// paged, even though the id here comes from a gateway-signed token and the row
+// almost always exists.
+func accountLookupErr(w http.ResponseWriter, r *http.Request, err error) {
+	if err == ErrNotFound {
+		httpx.Error(w, r, errcodes.Missing("account not found"))
+		return
+	}
+	httpx.Error(w, r, errcodes.Unexpected("account lookup failed"))
+}
+
 func (a *App) me(w http.ResponseWriter, r *http.Request) {
 	id, err := authn.MustIdentity(r.Context())
 	if err != nil {
@@ -337,7 +365,7 @@ func (a *App) me(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := a.Store.UserByID(r.Context(), id.UserID)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("account not found"))
+		accountLookupErr(w, r, err)
 		return
 	}
 	httpx.JSON(w, http.StatusOK, toPublic(user))
@@ -361,7 +389,7 @@ func (a *App) changePassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, err := a.Store.UserByID(ctx, id.UserID)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("account not found"))
+		accountLookupErr(w, r, err)
 		return
 	}
 	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)) != nil {
@@ -408,9 +436,9 @@ func (a *App) setRoles(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	a.mutateUser(w, r, func(ctx context.Context) (User, string, map[string]any) {
-		u, e := a.Store.SetRoles(ctx, chi.URLParam(r, "id"), roles)
-		return u, "user.roles_changed", map[string]any{"user_id": u.ID, "roles": roles, "err": e}
+	a.mutateUser(w, r, "user.roles_changed", func(ctx context.Context, tx pgx.Tx) (User, map[string]any, error) {
+		u, e := a.Store.SetRoles(ctx, tx, chi.URLParam(r, "id"), roles)
+		return u, map[string]any{"user_id": u.ID, "roles": roles}, e
 	})
 }
 
@@ -426,35 +454,42 @@ func (a *App) setStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.BadRequest("status must be active or suspended"))
 		return
 	}
-	a.mutateUser(w, r, func(ctx context.Context) (User, string, map[string]any) {
-		u, e := a.Store.SetStatus(ctx, chi.URLParam(r, "id"), req.Status)
-		return u, "user.status_changed", map[string]any{"user_id": u.ID, "status": req.Status, "err": e}
+	a.mutateUser(w, r, "user.status_changed", func(ctx context.Context, tx pgx.Tx) (User, map[string]any, error) {
+		u, e := a.Store.SetStatus(ctx, tx, chi.URLParam(r, "id"), req.Status)
+		return u, map[string]any{"user_id": u.ID, "status": req.Status}, e
 	})
 }
 
-// mutateUser runs an admin mutation, emits the resulting event via the outbox in
-// its own transaction is not needed here since the mutation already committed;
-// instead we enqueue through a short transaction.
-func (a *App) mutateUser(w http.ResponseWriter, r *http.Request, fn func(context.Context) (User, string, map[string]any)) {
+// mutateUser applies an admin mutation and enqueues its outbox event in a single
+// transaction, so the state change and the event the user service consumes
+// either both land or neither does.
+func (a *App) mutateUser(w http.ResponseWriter, r *http.Request, eventType string, fn func(context.Context, pgx.Tx) (User, map[string]any, error)) {
 	ctx := r.Context()
-	user, eventType, payload := fn(ctx)
-	if e, ok := payload["err"].(error); ok && e != nil {
-		if e == ErrNotFound {
+	tx, err := a.Store.Pool().Begin(ctx)
+	if err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("database unavailable"))
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	user, payload, err := fn(ctx, tx)
+	if err != nil {
+		if err == ErrNotFound {
 			httpx.Error(w, r, errcodes.Missing("user not found"))
 			return
 		}
 		httpx.Error(w, r, errcodes.Unexpected("could not update user"))
 		return
 	}
-	delete(payload, "err")
 
-	tx, err := a.Store.Pool().Begin(ctx)
-	if err == nil {
-		defer tx.Rollback(ctx)
-		env, _ := envelope.New(eventType, 1, service, logging.FromContext(ctx).CorrelationID, "", payload)
-		if outbox.Enqueue(ctx, tx, kafkax.TopicUserEvents, user.ID, env) == nil {
-			_ = tx.Commit(ctx)
-		}
+	env, _ := envelope.New(eventType, 1, service, logging.FromContext(ctx).CorrelationID, "", payload)
+	if err := outbox.Enqueue(ctx, tx, kafkax.TopicUserEvents, user.ID, env); err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not record user event"))
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not update user"))
+		return
 	}
 	httpx.JSON(w, http.StatusOK, toPublic(user))
 }

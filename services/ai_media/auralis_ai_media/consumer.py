@@ -19,14 +19,13 @@ class UploadConsumerHandler:
         self._sm = sessionmaker
 
     async def already_processed(self, consumer: str, event_id: str) -> bool:
+        # Read-only pre-check only. The authoritative claim happens in handle()
+        # in the same transaction as create_job, so a crash or a dead-lettered
+        # event never leaves the upload marked processed with no job queued.
         async with self._sm() as session:
-            repo = Repo(session)
-            # mark_event returns True when the row is new; invert for "already".
-            fresh = await repo.mark_event(consumer, event_id)
-            await session.commit()
-            return not fresh
+            return await Repo(session).event_seen(consumer, event_id)
 
-    async def mark_processed(self, consumer: str, event_id: str) -> None:  # handled in already_processed
+    async def mark_processed(self, consumer: str, event_id: str) -> None:
         return None
 
     async def handle(self, env: Envelope) -> None:
@@ -35,6 +34,8 @@ class UploadConsumerHandler:
         p = env.payload
         async with self._sm() as session:
             repo = Repo(session)
+            if not await repo.mark_event(CONSUMER_GROUP, env.event_id):
+                return  # already queued, or a concurrent delivery won the race
             await repo.create_job(
                 kind="media",
                 status="queued",

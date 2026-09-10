@@ -182,6 +182,40 @@ func TestProgressOrderingAndIdempotency(t *testing.T) {
 	}
 }
 
+// TestProgressColdCacheEnrichesFromContent covers the cold-cache path: the
+// episode is not in episode_cache and the client sends only episode_id and a
+// position. The service must fall back to the content lookup so the stored
+// progress and the analytics event carry a real show_id and duration.
+func TestProgressColdCacheEnrichesFromContent(t *testing.T) {
+	ep := "10000000-0000-0000-0000-000000000009"
+	show := "20000000-0000-0000-0000-000000000009"
+	user := "30000000-0000-0000-0000-000000000009"
+
+	content := stubContent(ep, show, false)
+	defer content.Close()
+	users := stubUsers(false)
+	defer users.Close()
+
+	srv, _, _ := setup(t, content, users) // setup truncates episode_cache
+
+	resp, data := call(t, "POST", srv.URL+"/playback/progress", map[string]any{
+		"episode_id": ep, "position_sec": 300, "client_event_id": "cold-1",
+	}, hdr(user))
+	if resp.StatusCode != 200 {
+		t.Fatalf("progress: %d %s", resp.StatusCode, data)
+	}
+
+	var p Progress
+	_, data = call(t, "GET", srv.URL+"/playback/progress/"+ep, nil, hdr(user))
+	_ = json.Unmarshal(data, &p)
+	if p.ShowID != show {
+		t.Fatalf("show_id not enriched from content: %q", p.ShowID)
+	}
+	if p.DurationSec != 1400 {
+		t.Fatalf("duration_sec not enriched from content, got %d", p.DurationSec)
+	}
+}
+
 func TestAuthorizePremiumGate(t *testing.T) {
 	ep := "10000000-0000-0000-0000-000000000002"
 	show := "20000000-0000-0000-0000-000000000002"

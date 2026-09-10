@@ -60,16 +60,17 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
         bible = await repo.load_bible(body.show_id)
         if bible is None:
             raise ApiError.not_found("no story bible exists for this show; generate a series first")
-        outline = next((o for o in await _outlines_for(repo, bible, body) if o.number == body.number), None)
-        if outline is None:
+        if body.number > bible.episode_count:
             raise ApiError.bad_request("episode number is outside the planned season")
+        # Resolving the outline is an LLM call; the worker does it so the request
+        # handler stays free of generation work (see the module docstring).
         job = await repo.create_job(
             kind="episode",
             status="queued",
             requested_by=identity.user_id,
             show_id=body.show_id,
             episode_number=body.number,
-            prompt={"outline": outline.model_dump(), "seed": body.seed or 0},
+            prompt={"number": body.number, "seed": body.seed or 0},
         )
         await session.commit()
         return {"job_id": job.id, "status": job.status}
@@ -94,12 +95,6 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
         return {"jobs": [_job_view(j) for j in jobs]}
 
     return router
-
-
-async def _outlines_for(repo: Repo, bible, body: EpisodeRequest):
-    from auralis_ai_media.providers.local_llm import LocalLLMProvider
-
-    return await LocalLLMProvider().generate_outlines(bible, body.seed or 0)
 
 
 def _job_view(job) -> dict:

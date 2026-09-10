@@ -149,13 +149,9 @@ func (s *Store) Preferences(ctx context.Context, userID string) (Preferences, er
 	return p, err
 }
 
-func (s *Store) UpdatePreferences(ctx context.Context, p Preferences) (Preferences, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Preferences{}, err
-	}
-	defer tx.Rollback(ctx)
-
+// UpdatePreferences runs inside the caller's transaction so the row change and
+// the user.preferences_changed event commit together.
+func (s *Store) UpdatePreferences(ctx context.Context, tx pgx.Tx, p Preferences) (Preferences, error) {
 	// The caller is authenticated, but the profile row is created asynchronously
 	// by the user.registered consumer. A client that sets preferences right after
 	// signup can win that race, so ensure a shell profile exists first; the
@@ -166,7 +162,7 @@ func (s *Store) UpdatePreferences(ctx context.Context, p Preferences) (Preferenc
 		 ON CONFLICT (user_id) DO NOTHING`, p.UserID); err != nil {
 		return Preferences{}, err
 	}
-	err = tx.QueryRow(ctx,
+	err := tx.QueryRow(ctx,
 		`INSERT INTO preferences (user_id, genre_slugs, language_codes, autoplay,
 			playback_speed, explicit_ok, email_updates)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -181,23 +177,23 @@ func (s *Store) UpdatePreferences(ctx context.Context, p Preferences) (Preferenc
 	if err != nil {
 		return Preferences{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return Preferences{}, err
-	}
 	return p, nil
 }
 
 // --- likes / bookmarks / follows ---
 
-func (s *Store) AddLike(ctx context.Context, userID, targetType, targetID, showID string) (bool, error) {
-	ct, err := s.pool.Exec(ctx,
+// AddLike, RemoveLike, AddBookmark, AddFollow and RemoveFollow run inside the
+// caller's transaction so the library change and the event it emits commit
+// together.
+func (s *Store) AddLike(ctx context.Context, tx pgx.Tx, userID, targetType, targetID, showID string) (bool, error) {
+	ct, err := tx.Exec(ctx,
 		`INSERT INTO likes (user_id, target_type, target_id, show_id) VALUES ($1,$2,$3,$4)
 		 ON CONFLICT DO NOTHING`, userID, targetType, targetID, showID)
 	return ct.RowsAffected() > 0, err
 }
 
-func (s *Store) RemoveLike(ctx context.Context, userID, targetType, targetID string) (bool, error) {
-	ct, err := s.pool.Exec(ctx,
+func (s *Store) RemoveLike(ctx context.Context, tx pgx.Tx, userID, targetType, targetID string) (bool, error) {
+	ct, err := tx.Exec(ctx,
 		`DELETE FROM likes WHERE user_id = $1 AND target_type = $2 AND target_id = $3`,
 		userID, targetType, targetID)
 	return ct.RowsAffected() > 0, err
@@ -222,8 +218,8 @@ func (s *Store) Likes(ctx context.Context, userID string, limit, offset int) ([]
 	return out, rows.Err()
 }
 
-func (s *Store) AddBookmark(ctx context.Context, userID, episodeID, showID, note string) (bool, error) {
-	ct, err := s.pool.Exec(ctx,
+func (s *Store) AddBookmark(ctx context.Context, tx pgx.Tx, userID, episodeID, showID, note string) (bool, error) {
+	ct, err := tx.Exec(ctx,
 		`INSERT INTO bookmarks (user_id, episode_id, show_id, note) VALUES ($1,$2,$3,$4)
 		 ON CONFLICT (user_id, episode_id) DO UPDATE SET note = EXCLUDED.note`,
 		userID, episodeID, showID, note)
@@ -255,14 +251,14 @@ func (s *Store) Bookmarks(ctx context.Context, userID string, limit, offset int)
 	return out, rows.Err()
 }
 
-func (s *Store) AddFollow(ctx context.Context, userID, showID string) (bool, error) {
-	ct, err := s.pool.Exec(ctx,
+func (s *Store) AddFollow(ctx context.Context, tx pgx.Tx, userID, showID string) (bool, error) {
+	ct, err := tx.Exec(ctx,
 		`INSERT INTO follows (user_id, show_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, userID, showID)
 	return ct.RowsAffected() > 0, err
 }
 
-func (s *Store) RemoveFollow(ctx context.Context, userID, showID string) (bool, error) {
-	ct, err := s.pool.Exec(ctx,
+func (s *Store) RemoveFollow(ctx context.Context, tx pgx.Tx, userID, showID string) (bool, error) {
+	ct, err := tx.Exec(ctx,
 		`DELETE FROM follows WHERE user_id = $1 AND show_id = $2`, userID, showID)
 	return ct.RowsAffected() > 0, err
 }
@@ -352,19 +348,14 @@ func (s *Store) SetEntitlement(ctx context.Context, tx pgx.Tx, userID, plan, sou
 	return e, err
 }
 
-// RedeemPromo applies a promo code to a user in one transaction, enforcing the
-// per-user and global redemption limits.
-func (s *Store) RedeemPromo(ctx context.Context, userID, code string) (Entitlement, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Entitlement{}, err
-	}
-	defer tx.Rollback(ctx)
-
+// RedeemPromo applies a promo code to a user, enforcing the per-user and global
+// redemption limits. It runs inside the caller's transaction so the redemption
+// and the user.entitlement_changed event commit together.
+func (s *Store) RedeemPromo(ctx context.Context, tx pgx.Tx, userID, code string) (Entitlement, error) {
 	var plan string
 	var durationDays, maxR, redeemed int
 	var active bool
-	err = tx.QueryRow(ctx,
+	err := tx.QueryRow(ctx,
 		`SELECT plan, duration_days, max_redemptions, redeemed_count, active
 		 FROM promo_codes WHERE code = $1 FOR UPDATE`, code).
 		Scan(&plan, &durationDays, &maxR, &redeemed, &active)
@@ -396,7 +387,7 @@ func (s *Store) RedeemPromo(ctx context.Context, userID, code string) (Entitleme
 	if err != nil {
 		return Entitlement{}, err
 	}
-	return ent, tx.Commit(ctx)
+	return ent, nil
 }
 
 // --- idempotency ---

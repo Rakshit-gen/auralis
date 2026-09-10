@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 
+import httpx
 import pytest
 
 from auralis_ai_media.pipeline import media
@@ -12,6 +13,19 @@ from auralis_ai_media.providers.base import GenerationError, TTSSegment
 from auralis_ai_media.providers.local_llm import LocalLLMProvider
 from auralis_ai_media.providers.tts import LocalTTSProvider, PiperTTSProvider
 from auralis_ai_media.schemas import ContinuityContext, EpisodeScript, StoryBible
+
+
+@pytest.mark.asyncio
+async def test_groq_network_failure_falls_back_to_local(monkeypatch):
+    from auralis_ai_media.providers.groq_llm import GroqLLMProvider
+
+    async def boom(*a, **kw):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", boom)
+    groq = GroqLLMProvider("fake-key", "some-model")
+    bible = await groq.generate_bible("a lighthouse keeper who hears the drowned", 6, seed=42)
+    assert isinstance(bible, StoryBible)  # local fallback, not an uncaught ConnectError
 
 
 @pytest.mark.asyncio

@@ -62,7 +62,8 @@ func TestRegisterLoginFlow(t *testing.T) {
 	defer srv.Close()
 
 	reg := registerUser(t, srv.URL, "listener@example.com")
-	if reg.User.Roles[0] != "USER" || reg.Tokens.AccessToken == "" || reg.Tokens.RefreshToken == "" {
+	if len(reg.User.Roles) != 1 || reg.User.Roles[0] != "USER" ||
+		reg.Tokens.AccessToken == "" || reg.Tokens.RefreshToken == "" {
 		t.Fatalf("unexpected register response: %+v", reg)
 	}
 
@@ -161,6 +162,45 @@ func TestChangePasswordRequiresIdentityAndCurrentPassword(t *testing.T) {
 	}, nil)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("login with new pw: expected 200, got %d", resp.StatusCode)
+	}
+
+	// The refresh token issued before the password change is now revoked.
+	resp, _ = post(t, srv.URL, "/auth/refresh", map[string]string{
+		"refresh_token": reg.Tokens.RefreshToken,
+	}, nil)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("pre-change refresh token: expected 401 after password change, got %d", resp.StatusCode)
+	}
+}
+
+// TestAccountLookupErrorIsNotMaskedAs404 guards the fix for me / changePassword,
+// which mapped every store error to 404. A malformed user id in the (signed)
+// identity header makes Postgres reject the query (22P02): that is a 500, not
+// "account not found". A well-formed but absent id is still a genuine 404.
+func TestAccountLookupErrorIsNotMaskedAs404(t *testing.T) {
+	app, _ := newTestApp(t)
+	srv := newServer(app)
+	defer srv.Close()
+
+	resp, _ := post(t, srv.URL, "/auth/password", map[string]string{
+		"current_password": "x", "new_password": "another-good-1",
+	}, identityHeaders("not-a-uuid", "USER"))
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("malformed id: want 500, got %d", resp.StatusCode)
+	}
+
+	absent := "99999999-9999-9999-9999-999999999999"
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/auth/me", nil)
+	for k, v := range identityHeaders(absent, "USER") {
+		req.Header.Set(k, v)
+	}
+	r2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2.Body.Close()
+	if r2.StatusCode != http.StatusNotFound {
+		t.Fatalf("absent account: want 404, got %d", r2.StatusCode)
 	}
 }
 

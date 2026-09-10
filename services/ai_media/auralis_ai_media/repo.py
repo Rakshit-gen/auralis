@@ -52,7 +52,8 @@ class Repo:
         self.s.add(models.JobEvent(job_id=job.id, status=status, note=note[:1000]))
 
     async def fail_job(self, job: models.GenerationJob, error: str) -> None:
-        job.attempts += 1
+        # attempts is bumped once per run by the worker when it claims the job;
+        # don't count the final failure twice.
         job.error = error[:2000]
         await self.advance_job(job, "failed", job.progress, error)
 
@@ -158,6 +159,15 @@ class Repo:
             pg_insert(models.ProcessedEvent).values(consumer=consumer, event_id=event_id).on_conflict_do_nothing()
         )
         return result.rowcount > 0
+
+    async def event_seen(self, consumer: str, event_id: str) -> bool:
+        row = await self.s.execute(
+            select(models.ProcessedEvent.event_id).where(
+                models.ProcessedEvent.consumer == consumer,
+                models.ProcessedEvent.event_id == event_id,
+            )
+        )
+        return row.first() is not None
 
 
 def _seed_threads(bible: StoryBible) -> list[str]:

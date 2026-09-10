@@ -224,6 +224,15 @@ class Repo:
         )
         return result.rowcount > 0
 
+    async def event_seen(self, consumer: str, event_id: str) -> bool:
+        row = await self.s.execute(
+            select(models.ProcessedEvent.event_id).where(
+                models.ProcessedEvent.consumer == consumer,
+                models.ProcessedEvent.event_id == event_id,
+            )
+        )
+        return row.first() is not None
+
 
 def candidate_from(show: models.Show, signal: models.ShowSignal | None) -> Candidate:
     return Candidate(
