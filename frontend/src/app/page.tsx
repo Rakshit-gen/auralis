@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/stores/auth";
 import { useShows, useTrending } from "@/lib/hooks";
@@ -10,6 +10,7 @@ import { LogoMark } from "@/components/logo";
 import { SparkIcon } from "@/components/icons";
 import { CreatorPipeline, GenreStrip, HowItWorks } from "@/components/landing-sections";
 import { Skeleton } from "@/components/ui";
+import type { Show } from "@/lib/types";
 
 const BRIEF_SAMPLES = [
   "A lighthouse keeper starts receiving weather reports for a coast that no longer exists.",
@@ -22,7 +23,17 @@ export default function Landing() {
   const router = useRouter();
   const { data: trending, isLoading, isError, isFetching } = useTrending();
   const trendingWarming = isLoading || (isError && isFetching);
-  const { data: fresh } = useShows({ sort: "recent", limit: 3 });
+  const { data: catalog } = useShows({ limit: 24 });
+  // Everything the trending rail isn't already showing.
+  const pool = useMemo(() => {
+    const onTrending = new Set((trending ?? []).map((t) => t.slug));
+    return (catalog?.shows ?? []).filter((s) => !onTrending.has(s.slug));
+  }, [catalog, trending]);
+  // Three of them, picked fresh each visit (shuffle is a side effect, not render).
+  const [picks, setPicks] = useState<Show[]>([]);
+  useEffect(() => {
+    if (pool.length) setPicks([...pool].sort(() => Math.random() - 0.5).slice(0, 3));
+  }, [pool]);
 
   useEffect(() => {
     if (ready && user) router.replace("/home");
@@ -59,17 +70,15 @@ export default function Landing() {
             </Link>
           </div>
 
-          <div className="mt-12 animate-fade-up" style={{ animationDelay: "80ms" }}>
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-bone-400">
-              <span className="relative flex h-2 w-2" aria-hidden>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal/70" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-signal" />
-              </span>
-              New this week
-            </p>
+          <div
+            className="mt-12 animate-fade-up"
+            style={{ animationDelay: "80ms" }}
+            hidden={!!catalog && pool.length === 0}
+          >
+            <p className="text-sm text-bone-400">You&rsquo;ll love</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              {fresh
-                ? fresh.shows.slice(0, 3).map((s) => (
+              {picks.length
+                ? picks.map((s) => (
                     <Link
                       key={s.id}
                       href={`/shows/${s.slug}`}
