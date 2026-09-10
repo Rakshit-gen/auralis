@@ -353,3 +353,26 @@ func TestInternalEpisodeEndpointRequiresServiceToken(t *testing.T) {
 		t.Fatalf("internal episode should include the script: %s", data)
 	}
 }
+
+// TestLookupErrorIsNotMaskedAs404 guards the fix for catalog handlers that
+// mapped every store error to 404. A malformed id makes Postgres reject the
+// query (22P02), which is a 500, not a "not found".
+func TestLookupErrorIsNotMaskedAs404(t *testing.T) {
+	srv, _, _ := setup(t)
+	svc := map[string]string{"X-Auralis-Service-Token": "svc-token"}
+
+	resp, _ := do(t, "GET", srv.URL+"/internal/episodes/not-a-uuid", nil, svc)
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("malformed episode id: expected 500, got %d", resp.StatusCode)
+	}
+	resp, _ = do(t, "GET", srv.URL+"/internal/shows/not-a-uuid", nil, svc)
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("malformed show id: expected 500, got %d", resp.StatusCode)
+	}
+
+	// A well-formed but absent id is still a genuine 404.
+	resp, _ = do(t, "GET", srv.URL+"/internal/episodes/99999999-9999-9999-9999-999999999999", nil, svc)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("absent episode id: expected 404, got %d", resp.StatusCode)
+	}
+}

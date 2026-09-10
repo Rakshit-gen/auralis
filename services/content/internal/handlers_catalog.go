@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -8,6 +9,17 @@ import (
 	"github.com/auralis/platform/httpx"
 	"github.com/go-chi/chi/v5"
 )
+
+// lookupErr maps a store lookup error to a response: a 404 only when the row
+// genuinely does not exist, a 500 for anything else. Collapsing every error to
+// "not found" hid database outages behind 404s that never paged anyone.
+func lookupErr(w http.ResponseWriter, r *http.Request, err error, notFoundMsg string) {
+	if errors.Is(err, ErrNotFound) {
+		httpx.Error(w, r, errcodes.Missing(notFoundMsg))
+		return
+	}
+	httpx.Error(w, r, errcodes.Unexpected("lookup failed"))
+}
 
 func (a *App) listGenres(w http.ResponseWriter, r *http.Request) {
 	gs, err := a.Store.Genres(r.Context())
@@ -55,7 +67,7 @@ func (a *App) getShow(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "slug")
 	sh, err := a.Store.ShowByIDOrSlug(r.Context(), key)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("show not found"))
+		lookupErr(w, r, err, "show not found")
 		return
 	}
 	if sh.Status != StatusPublished {
@@ -98,7 +110,11 @@ func (a *App) getSeasonEpisodes(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) getEpisode(w http.ResponseWriter, r *http.Request) {
 	e, err := a.Store.EpisodeByID(r.Context(), chi.URLParam(r, "id"))
-	if err != nil || e.Status != StatusPublished {
+	if err != nil {
+		lookupErr(w, r, err, "episode not found")
+		return
+	}
+	if e.Status != StatusPublished {
 		httpx.Error(w, r, errcodes.Missing("episode not found"))
 		return
 	}
@@ -130,7 +146,7 @@ func (a *App) search(w http.ResponseWriter, r *http.Request) {
 func (a *App) getEpisodeInternal(w http.ResponseWriter, r *http.Request) {
 	e, err := a.Store.EpisodeByID(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("episode not found"))
+		lookupErr(w, r, err, "episode not found")
 		return
 	}
 	sh, _ := a.Store.ShowByID(r.Context(), e.ShowID)
@@ -140,7 +156,7 @@ func (a *App) getEpisodeInternal(w http.ResponseWriter, r *http.Request) {
 func (a *App) getShowInternal(w http.ResponseWriter, r *http.Request) {
 	sh, err := a.Store.ShowByID(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("show not found"))
+		lookupErr(w, r, err, "show not found")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, sh)
