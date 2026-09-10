@@ -36,6 +36,7 @@ func main() {
 	corsOrigins := c.CSV("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000"})
 	redisURL := c.Optional("REDIS_URL", "")
 	rateLimit := c.OptionalInt("GATEWAY_RATE_LIMIT", 240)
+	trustedHops := c.OptionalInt("GATEWAY_TRUSTED_PROXY_HOPS", 1)
 
 	backends := map[string]string{
 		"auth":           c.Require("AUTH_SERVICE_URL"),
@@ -79,7 +80,7 @@ func main() {
 	gw, err := internal.New(internal.Config{
 		JWTSecret: jwtSecret, JWTIssuer: issuer, JWTAudience: audience,
 		IdentitySecret: identitySecret, Backends: backends, Limiter: limiter,
-		RateLimit: rateLimit, RateWindow: time.Minute,
+		RateLimit: rateLimit, RateWindow: time.Minute, TrustedProxyHops: trustedHops,
 	})
 	if err != nil {
 		server.FailFast("could not build gateway", err)

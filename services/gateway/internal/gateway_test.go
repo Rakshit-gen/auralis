@@ -122,6 +122,35 @@ func TestGatewayAuthEnforcementAndIdentityForwarding(t *testing.T) {
 	}
 }
 
+// TestRateLimitIgnoresSpoofedForwardedFor guards the fix for clientIP, which
+// keyed the limiter on the leftmost X-Forwarded-For entry. A client that varies
+// that entry per request would otherwise get a fresh bucket every time and never
+// be limited. With one trusted proxy hop the real client is the rightmost entry.
+func TestRateLimitIgnoresSpoofedForwardedFor(t *testing.T) {
+	backend, _ := echoBackend()
+	defer backend.Close()
+	g := newTestGateway(t, map[string]string{"content": backend.URL}, 3)
+	gw := httptest.NewServer(g)
+	defer gw.Close()
+
+	codes := map[int]int{}
+	for i := 0; i < 6; i++ {
+		req, _ := http.NewRequest("GET", gw.URL+"/api/catalog/shows", nil)
+		// Left entry is attacker-controlled and varies; the right entry is what a
+		// real load balancer appended and is the same client every time.
+		req.Header.Set("X-Forwarded-For", "10.0.0."+itoa(i)+", 203.0.113.5")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		codes[resp.StatusCode]++
+	}
+	if codes[http.StatusOK] != 3 || codes[http.StatusTooManyRequests] != 3 {
+		t.Fatalf("spoofed XFF bypassed the limiter: got %v", codes)
+	}
+}
+
 func TestGatewayRateLimit(t *testing.T) {
 	backend, _ := echoBackend()
 	defer backend.Close()

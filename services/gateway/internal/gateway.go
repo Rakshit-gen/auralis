@@ -47,6 +47,7 @@ type Gateway struct {
 	limiter        Limiter
 	rateLimit      int
 	rateWindow     time.Duration
+	trustedHops    int
 }
 
 // Limiter decides whether a request may proceed. Allow returns the remaining
@@ -65,6 +66,9 @@ type Config struct {
 	Limiter        Limiter
 	RateLimit      int
 	RateWindow     time.Duration
+	// TrustedProxyHops is the number of proxies (load balancers) that sit in
+	// front of the gateway and append to X-Forwarded-For. Defaults to 1.
+	TrustedProxyHops int
 }
 
 // New builds a Gateway.
@@ -115,6 +119,10 @@ func New(cfg Config) (*Gateway, error) {
 	}
 	g.routes = defaultRoutes()
 	g.rateLimit, g.rateWindow = cfg.RateLimit, cfg.RateWindow
+	g.trustedHops = cfg.TrustedProxyHops
+	if g.trustedHops <= 0 {
+		g.trustedHops = 1
+	}
 	if g.rateLimit == 0 {
 		g.rateLimit = 240
 	}
@@ -188,7 +196,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Rate limit: per user when known, else per client IP.
-	limitKey := "ip:" + clientIP(r)
+	limitKey := "ip:" + clientIP(r, g.trustedHops)
 	if authed {
 		limitKey = "user:" + identity.UserID
 	}
