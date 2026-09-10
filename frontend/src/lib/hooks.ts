@@ -192,6 +192,13 @@ export function useTrending() {
         "/recommendations/trending",
         { auth: false },
       ).then((r) => r.items),
+    // The recommendation service can cold-start; keep retrying a 5xx/timeout
+    // for ~30s so the page rides out a warm-up instead of erroring.
+    retry: (count, err) => {
+      const status = (err as { status?: number })?.status ?? 0;
+      if (status >= 400 && status < 500) return false;
+      return count < 5;
+    },
   });
   const bySlug = new Map((catalog.data?.shows ?? []).map((s) => [s.slug, s]));
   return {
