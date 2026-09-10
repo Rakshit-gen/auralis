@@ -136,9 +136,7 @@ async def test_dedupe_is_atomic_with_projection_writes(sm):
 
     async def signal_plays() -> int:
         async with sm() as session:
-            row = await session.execute(
-                text("SELECT plays FROM reco_show_signals WHERE show_id = :s"), {"s": show}
-            )
+            row = await session.execute(text("SELECT plays FROM reco_show_signals WHERE show_id = :s"), {"s": show})
             return row.scalar_one()
 
     async def event_seen(eid: str) -> bool:
