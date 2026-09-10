@@ -284,15 +284,20 @@ func (c *Consumer) process(ctx context.Context, log logging.Logger, m kafka.Mess
 }
 
 func (c *Consumer) deadLetter(ctx context.Context, m kafka.Message, reason string) error {
+	// Build a fresh header slice: append(m.Headers, ...) can write into the
+	// fetched message's backing array when it has spare capacity.
+	headers := make([]kafka.Header, 0, len(m.Headers)+3)
+	headers = append(headers, m.Headers...)
+	headers = append(headers,
+		kafka.Header{Key: "dlq_reason", Value: []byte(reason)},
+		kafka.Header{Key: "dlq_origin_topic", Value: []byte(m.Topic)},
+		kafka.Header{Key: "dlq_at", Value: []byte(time.Now().UTC().Format(time.RFC3339))},
+	)
 	err := c.dlq.WriteMessages(ctx, kafka.Message{
-		Topic: m.Topic + DeadLetterSuffix,
-		Key:   m.Key,
-		Value: m.Value,
-		Headers: append(m.Headers,
-			kafka.Header{Key: "dlq_reason", Value: []byte(reason)},
-			kafka.Header{Key: "dlq_origin_topic", Value: []byte(m.Topic)},
-			kafka.Header{Key: "dlq_at", Value: []byte(time.Now().UTC().Format(time.RFC3339))},
-		),
+		Topic:   m.Topic + DeadLetterSuffix,
+		Key:     m.Key,
+		Value:   m.Value,
+		Headers: headers,
 	})
 	if err != nil {
 		logging.L(ctx).Error("failed to write to dead-letter topic", "error", err.Error(), "topic", m.Topic)
