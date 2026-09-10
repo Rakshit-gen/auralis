@@ -24,9 +24,10 @@ function Scrubber({ compact = false }: { compact?: boolean }) {
         max={duration || 0}
         step={1}
         value={currentTime}
+        disabled={!duration}
         aria-label="Seek"
         onChange={(e) => requestSeek(Number(e.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ink-700 accent-amber"
+        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ink-700 accent-amber disabled:cursor-default disabled:opacity-60"
         style={{ background: `linear-gradient(to right, #d9963f ${pct}%, #26221d ${pct}%)` }}
       />
       {!compact && <span className="w-12 text-xs tabular-nums text-bone-400">{formatDuration(duration)}</span>}
