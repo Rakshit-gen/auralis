@@ -51,7 +51,7 @@ function PremiumInner() {
         {active ? (
           <div className="text-sm text-bone-200">
             <p>
-              Plan: <span className="text-amber-soft">Premium</span> · granted via {entitlement?.source.replace("_", " ")}
+              Plan: <span className="text-amber-soft">Premium</span> · granted via {entitlement?.source.replace(/_/g, " ")}
             </p>
             {entitlement?.expires_at && (
               <p className="mt-1 text-bone-400">Renews or expires {relativeTime(entitlement.expires_at)}</p>
