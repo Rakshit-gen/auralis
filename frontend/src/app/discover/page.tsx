@@ -15,7 +15,7 @@ const SORTS = [
 
 export default function DiscoverPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<div className="container-page py-24" />}>
       <DiscoverInner />
     </Suspense>
   );
