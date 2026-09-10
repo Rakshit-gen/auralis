@@ -304,7 +304,7 @@ export function PlayerBar() {
                   value={rate}
                   onChange={(e) => setRate(Number(e.target.value))}
                   aria-label="Playback speed"
-                  className="hidden h-8 rounded-full border border-white/10 bg-transparent pl-2.5 pr-1 text-xs text-bone-400 focus:border-signal focus:outline-none sm:block"
+                  className="hidden h-8 rounded-full border border-white/10 bg-transparent pl-3 text-xs text-bone-400 focus:border-signal focus:outline-none sm:block"
                 >
                   {SPEEDS.map((s) => (
                     <option key={s} value={s}>
