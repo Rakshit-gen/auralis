@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import { api } from "@/lib/api";
 import { usePlayer } from "@/stores/player";
 import { ProgressBar } from "@/components/ui";
@@ -56,14 +55,6 @@ export function ContinueRow({ item }: { item: ContinueItem }) {
       >
         <PlayIcon className="h-4 w-4" />
       </button>
-      {episode && (
-        <Link
-          href={`/shows/${cover?.slug || episode.show_id}`}
-          className="hidden max-w-[8rem] shrink-0 truncate text-xs text-bone-400 hover:text-bone-200 sm:block"
-        >
-          {cover?.title || "Show"}
-        </Link>
-      )}
     </div>
   );
 }
