@@ -162,6 +162,14 @@ func TestChangePasswordRequiresIdentityAndCurrentPassword(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("login with new pw: expected 200, got %d", resp.StatusCode)
 	}
+
+	// The refresh token issued before the password change is now revoked.
+	resp, _ = post(t, srv.URL, "/auth/refresh", map[string]string{
+		"refresh_token": reg.Tokens.RefreshToken,
+	}, nil)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("pre-change refresh token: expected 401 after password change, got %d", resp.StatusCode)
+	}
 }
 
 func TestAdminRoleManagement(t *testing.T) {
