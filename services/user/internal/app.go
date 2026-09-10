@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -440,12 +441,19 @@ func (a *App) internalEntitlement(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) internalPreferences(w http.ResponseWriter, r *http.Request) {
-	p, err := a.Store.Preferences(r.Context(), chi.URLParam(r, "id"))
-	if err != nil {
-		httpx.JSON(w, http.StatusOK, Preferences{UserID: chi.URLParam(r, "id"), GenreSlugs: []string{}, LanguageCodes: []string{}, PlaybackSpeed: 1})
-		return
+	id := chi.URLParam(r, "id")
+	p, err := a.Store.Preferences(r.Context(), id)
+	switch {
+	case err == nil:
+		httpx.JSON(w, http.StatusOK, p)
+	case errors.Is(err, ErrNotFound):
+		// No preferences row yet (user hasn't set any): defaults are correct.
+		// Any other error means the DB is unreachable - returning defaults there
+		// would feed recommendation empty preferences as if they were real.
+		httpx.JSON(w, http.StatusOK, Preferences{UserID: id, GenreSlugs: []string{}, LanguageCodes: []string{}, PlaybackSpeed: 1})
+	default:
+		httpx.Error(w, r, errcodes.Unexpected("could not load preferences"))
 	}
-	httpx.JSON(w, http.StatusOK, p)
 }
 
 // --- helpers ---

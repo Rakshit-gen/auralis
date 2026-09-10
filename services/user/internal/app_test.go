@@ -182,6 +182,26 @@ func TestRegistrationThenLibraryFlow(t *testing.T) {
 	}
 }
 
+// TestInternalPreferencesDistinguishesNotFoundFromError guards against handing
+// recommendation fabricated defaults when the read actually failed: a missing
+// row returns defaults, a real query error returns 500.
+func TestInternalPreferencesDistinguishesNotFoundFromError(t *testing.T) {
+	srv, _ := setup(t)
+	svc := map[string]string{"X-Auralis-Service-Token": "svc"}
+	missing := "dddddddd-dddd-dddd-dddd-dddddddddddd"
+
+	resp, data := req(t, "GET", srv.URL+"/internal/users/"+missing+"/preferences", nil, svc)
+	if resp.StatusCode != 200 {
+		t.Fatalf("missing prefs: want 200 defaults, got %d %s", resp.StatusCode, data)
+	}
+
+	// A malformed id makes the query itself fail; that must not look like defaults.
+	resp, _ = req(t, "GET", srv.URL+"/internal/users/not-a-uuid/preferences", nil, svc)
+	if resp.StatusCode != 500 {
+		t.Fatalf("query error: want 500, got %d", resp.StatusCode)
+	}
+}
+
 // TestLibraryChangeAndEventCommitTogether guards the atomic-outbox fix: a like
 // and its user.liked event land in the same transaction, and a duplicate like
 // (no state change) emits no second event.
