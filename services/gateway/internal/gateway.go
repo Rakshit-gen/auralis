@@ -16,6 +16,7 @@ import (
 	"github.com/auralis/platform/errcodes"
 	"github.com/auralis/platform/logging"
 	"github.com/auralis/platform/telemetry"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -230,7 +231,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 	backend.proxy.ServeHTTP(w, r)
-	telemetry.ObserveHTTP("gateway", r.Method, route.Prefix, 0, time.Since(start))
+	// httpx.RequestContext wraps w before we see it; read back the status the
+	// backend actually returned rather than reporting a constant 0.
+	status := 0
+	if ww, ok := w.(middleware.WrapResponseWriter); ok {
+		status = ww.Status()
+	}
+	telemetry.ObserveHTTP("gateway", r.Method, route.Prefix, status, time.Since(start))
 }
 
 func (g *Gateway) match(path string) (Route, bool) {
