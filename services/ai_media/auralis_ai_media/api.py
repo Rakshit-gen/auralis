@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from auralis_ai_media.providers.base import LLMProvider
 from auralis_ai_media.repo import Repo
 
 
@@ -27,7 +28,7 @@ class EpisodeRequest(BaseModel):
     seed: int | None = None
 
 
-def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
+def build_router(sessionmaker: async_sessionmaker, llm: LLMProvider) -> APIRouter:
     router = APIRouter()
 
     async def repo_dep():
@@ -60,7 +61,8 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
         bible = await repo.load_bible(body.show_id)
         if bible is None:
             raise ApiError.not_found("no story bible exists for this show; generate a series first")
-        outline = next((o for o in await _outlines_for(repo, bible, body) if o.number == body.number), None)
+        outlines = await llm.generate_outlines(bible, body.seed or 0, bible.language)
+        outline = next((o for o in outlines if o.number == body.number), None)
         if outline is None:
             raise ApiError.bad_request("episode number is outside the planned season")
         job = await repo.create_job(
@@ -94,12 +96,6 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
         return {"jobs": [_job_view(j) for j in jobs]}
 
     return router
-
-
-async def _outlines_for(repo: Repo, bible, body: EpisodeRequest):
-    from auralis_ai_media.providers.local_llm import LocalLLMProvider
-
-    return await LocalLLMProvider().generate_outlines(bible, body.seed or 0)
 
 
 def _job_view(job) -> dict:
