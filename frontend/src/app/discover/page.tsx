@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useGenres, useLanguages, useShows } from "@/lib/hooks";
 import { ShowGrid } from "@/components/show-grid";
 import { Chip } from "@/components/ui";
@@ -23,12 +23,26 @@ export default function DiscoverPage() {
 
 function DiscoverInner() {
   const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [genre, setGenre] = useState<string>(params.get("genre") ?? "");
   const [language, setLanguage] = useState<string>(params.get("language") ?? "");
-  const [sort, setSort] = useState("recent");
+  const [sort, setSort] = useState(params.get("sort") ?? "recent");
   const [aiOnly, setAiOnly] = useState<boolean | undefined>(
     params.get("ai") === "true" ? true : params.get("ai") === "false" ? false : undefined,
   );
+
+  // Keep the URL in step with the filters so the view is shareable and the
+  // back button restores it.
+  useEffect(() => {
+    const q = new URLSearchParams();
+    if (genre) q.set("genre", genre);
+    if (language) q.set("language", language);
+    if (sort !== "recent") q.set("sort", sort);
+    if (aiOnly !== undefined) q.set("ai", String(aiOnly));
+    const qs = q.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [genre, language, sort, aiOnly, pathname, router]);
 
   const { data: genres } = useGenres();
   const { data: languages } = useLanguages();
