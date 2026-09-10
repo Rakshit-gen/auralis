@@ -48,10 +48,14 @@ function ProfileInner() {
   const [pwCurrent, setPwCurrent] = useState("");
   const [pwNew, setPwNew] = useState("");
   const [pwStatus, setPwStatus] = useState<string | null>(null);
+  const [pwBusy, setPwBusy] = useState(false);
+  const pwWeak = pwNew.length > 0 && (pwNew.length < 10 || !/[0-9!@#$%^&*]/.test(pwNew));
 
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pwWeak) return;
     setPwStatus(null);
+    setPwBusy(true);
     try {
       await api("/auth/password", { method: "POST", body: { current_password: pwCurrent, new_password: pwNew } });
       setPwStatus("Password updated");
@@ -59,6 +63,8 @@ function ProfileInner() {
       setPwNew("");
     } catch (err) {
       setPwStatus(err instanceof ApiError ? err.message : "Could not update password");
+    } finally {
+      setPwBusy(false);
     }
   };
 
@@ -105,9 +111,14 @@ function ProfileInner() {
         <label className="block text-sm">
           <span className="mb-1 block text-bone-300">New password</span>
           <input type="password" className="field" value={pwNew} onChange={(e) => setPwNew(e.target.value)} />
+          <span className={`mt-1 block text-xs ${pwWeak ? "text-red-400" : "text-bone-400"}`}>
+            At least 10 characters, with a number or symbol.
+          </span>
         </label>
         <div className="flex items-center gap-3">
-          <button className="btn-ghost">Update password</button>
+          <button disabled={pwBusy || pwWeak || !pwCurrent || !pwNew} className="btn-ghost">
+            {pwBusy ? "Updating" : "Update password"}
+          </button>
           {pwStatus && <span className="text-sm text-bone-400">{pwStatus}</span>}
         </div>
       </form>
