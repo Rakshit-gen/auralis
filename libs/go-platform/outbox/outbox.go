@@ -86,15 +86,25 @@ func (r *Relay) drain(ctx context.Context) (int, error) {
 	}
 }
 
-// drainBatch locks a batch of unpublished rows FOR UPDATE SKIP LOCKED so
-// multiple service instances can relay concurrently without double-sending
-// within a batch, publishes them in id order, and marks them published.
+// relayLockKey is an arbitrary fixed key for the advisory lock that serializes
+// relays across service instances.
+const relayLockKey = 0x6175726c7279 // "aurlry"
+
+// drainBatch publishes a batch of unpublished rows in id order and marks them
+// published. It first takes a transaction-scoped advisory lock so only one
+// instance's relay drains at a time: with several instances draining in
+// parallel a later event for an aggregate could reach Kafka before an earlier
+// one still sitting in another instance's batch, breaking per-entity order.
 func (r *Relay) drainBatch(ctx context.Context) (int, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, relayLockKey); err != nil {
+		return 0, err
+	}
 
 	rows, err := tx.Query(ctx,
 		`SELECT id, topic, partition_key, envelope FROM outbox_events
