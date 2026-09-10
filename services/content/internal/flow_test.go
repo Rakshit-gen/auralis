@@ -313,3 +313,43 @@ func TestShowReviewCascadesToReadyEpisodes(t *testing.T) {
 		t.Fatalf("expected 1 show + 1 episode publication event, got %d + %d", showEvents, epEvents)
 	}
 }
+
+// TestInternalEpisodeEndpointRequiresServiceToken guards the fix for the
+// access-control hole: /internal/episodes/{id} returns unpublished episodes with
+// their script and media keys, so it must reject callers without the shared
+// service token even though the gateway lets any authenticated user reach it.
+func TestInternalEpisodeEndpointRequiresServiceToken(t *testing.T) {
+	srv, _, _ := setup(t)
+	svc := map[string]string{"X-Auralis-Service-Token": "svc-token"}
+
+	resp, data := do(t, "POST", srv.URL+"/internal/authoring/shows", map[string]any{
+		"creator_user_id": "55555555-5555-5555-5555-555555555555",
+		"title":           "Sealed Room", "language_code": "en",
+	}, svc)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create show: %d %s", resp.StatusCode, data)
+	}
+	showID := idOf(t, data)
+
+	resp, data = do(t, "POST", srv.URL+"/internal/authoring/episodes", map[string]any{
+		"show_id": showID, "number": 1, "title": "Draft One", "script": "SECRET SCRIPT",
+	}, svc)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create episode: %d %s", resp.StatusCode, data)
+	}
+	episodeID := idOf(t, data)
+
+	// No service token: rejected.
+	if resp, _ = do(t, "GET", srv.URL+"/internal/episodes/"+episodeID, nil, nil); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("internal episode without token: expected 401, got %d", resp.StatusCode)
+	}
+
+	// With the token: the unpublished episode and its script come back.
+	resp, data = do(t, "GET", srv.URL+"/internal/episodes/"+episodeID, nil, svc)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("internal episode with token: %d %s", resp.StatusCode, data)
+	}
+	if !bytes.Contains(data, []byte("SECRET SCRIPT")) {
+		t.Fatalf("internal episode should include the script: %s", data)
+	}
+}

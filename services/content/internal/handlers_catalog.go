@@ -125,7 +125,7 @@ func (a *App) search(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// --- internal endpoints (called by other services, still behind gateway auth) ---
+// --- internal endpoints (called by other services with the shared service token) ---
 
 func (a *App) getEpisodeInternal(w http.ResponseWriter, r *http.Request) {
 	e, err := a.Store.EpisodeByID(r.Context(), chi.URLParam(r, "id"))

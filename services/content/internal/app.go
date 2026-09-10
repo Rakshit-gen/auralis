@@ -52,10 +52,16 @@ func (a *App) Routes(r chi.Router) {
 	r.Get("/episodes/{id}", a.getEpisode)
 	r.Get("/search", a.search)
 
-	// Internal, service-to-service: episode detail regardless of publish state,
-	// used by playback for authorization and by recommendation for features.
-	r.Get("/internal/episodes/{id}", a.getEpisodeInternal)
-	r.Get("/internal/shows/{id}", a.getShowInternal)
+	// Internal, service-to-service: episode/show detail regardless of publish
+	// state, with scripts and media keys attached. Used by playback for
+	// authorization. Must require the shared service token: the gateway only
+	// checks that /api/content callers are authenticated, so without this any
+	// logged-in user could read unpublished episodes and internal media keys.
+	r.Group(func(r chi.Router) {
+		r.Use(authn.ServiceToken(a.ServiceToken))
+		r.Get("/internal/episodes/{id}", a.getEpisodeInternal)
+		r.Get("/internal/shows/{id}", a.getShowInternal)
+	})
 
 	// Creator authoring.
 	r.Group(func(r chi.Router) {
