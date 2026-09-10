@@ -145,6 +145,19 @@ body {
   }
 }
 
+/* Native selects across the app draw the OS chevron jammed against the right
+   edge. Strip it and paint our own, matched to the palette. Unlayered so it
+   beats the .field utility's horizontal padding. */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a89a7d' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2.1rem;
+}
+
 /* The player's progress bar: a hairline track with a small warm handle, shared
    by the mini player's flush bottom edge and the expanded sheet. The track fill
    is a gradient set inline since it moves with playback. */
