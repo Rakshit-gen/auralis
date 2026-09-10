@@ -66,8 +66,13 @@ class GroqLLMProvider:
                 },
             },
         }
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            resp = await client.post(_BASE, json=payload, headers={"Authorization": f"Bearer {self._key}"})
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.post(_BASE, json=payload, headers={"Authorization": f"Bearer {self._key}"})
+        except httpx.HTTPError as exc:
+            # A connect failure or timeout must fall back to the local provider
+            # like any other groq failure, not crash the generation job.
+            raise GenerationError(f"groq request failed: {exc}") from exc
         if resp.status_code >= 300:
             raise GenerationError(f"groq returned {resp.status_code}: {resp.text[:300]}")
         try:
