@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useTrending, useShows } from "@/lib/hooks";
 import { coverStyle, formatCount } from "@/lib/format";
-import { Spinner } from "@/components/ui";
+import { EmptyState, Spinner } from "@/components/ui";
 
 export default function TrendingPage() {
   const { data: trending, isLoading } = useTrending();
@@ -17,6 +17,13 @@ export default function TrendingPage() {
       </div>
 
       {isLoading && <Spinner />}
+
+      {!isLoading && !trending?.length && (
+        <EmptyState
+          title="No trends yet"
+          hint="Once episodes start getting plays, the most-listened shows land here."
+        />
+      )}
 
       <ol className="space-y-2">
         {(trending ?? []).map((t, i) => (
