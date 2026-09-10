@@ -11,6 +11,7 @@ import {
 } from "@/lib/hooks";
 import { useAuth } from "@/stores/auth";
 import { ShowRail, ShowCardCompact } from "@/components/show-card";
+import { formatCount } from "@/lib/format";
 import { ContinueRow } from "@/components/continue-row";
 import { SectionHeader, Spinner } from "@/components/ui";
 import type { Show } from "@/lib/types";
@@ -89,7 +90,7 @@ function HomeInner() {
                   <ShowCardCompact
                     title={t.title}
                     slug={t.slug}
-                    meta={`${t.plays} plays`}
+                    meta={`${formatCount(t.plays)} plays`}
                     cover={t.cover_image_url}
                     accent={t.accent_color}
                   />
