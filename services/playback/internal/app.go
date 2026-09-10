@@ -360,7 +360,12 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		if ev.ClientEventID != "" {
 			fresh, err := a.Store.MarkSeen(ctx, tx, ev.ClientEventID, id.UserID)
-			if err != nil || !fresh {
+			if err != nil {
+				_ = tx.Rollback(ctx)
+				httpx.Error(w, r, errcodes.Unexpected("could not record events"))
+				return
+			}
+			if !fresh {
 				_ = tx.Rollback(ctx)
 				skipped++
 				continue
