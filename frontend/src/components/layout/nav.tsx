@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/stores/auth";
 import { SearchIcon, SparkIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
@@ -21,6 +21,23 @@ export function Nav() {
   const { user, hasRole, logout } = useAuth();
   const [q, setQ] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss the account menu on outside tap or Escape (mouse-leave alone
+  // leaves it stuck open on touch devices).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +91,7 @@ export function Nav() {
         </Link>
 
         {user ? (
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((o) => !o)}
               className="grid h-9 w-9 place-items-center rounded-full border border-ink-600 text-sm font-semibold text-amber-soft"
@@ -86,6 +103,7 @@ export function Nav() {
             {menuOpen && (
               <div
                 className="surface absolute right-0 mt-2 w-52 overflow-hidden py-1 text-sm"
+                role="menu"
                 onMouseLeave={() => setMenuOpen(false)}
               >
                 <div className="border-b border-ink-700 px-3 py-2">
