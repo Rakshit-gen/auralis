@@ -181,3 +181,47 @@ func TestRegistrationThenLibraryFlow(t *testing.T) {
 		t.Fatalf("anon /me: expected 401, got %d", resp.StatusCode)
 	}
 }
+
+// TestLibraryChangeAndEventCommitTogether guards the atomic-outbox fix: a like
+// and its user.liked event land in the same transaction, and a duplicate like
+// (no state change) emits no second event.
+func TestLibraryChangeAndEventCommitTogether(t *testing.T) {
+	srv, app := setup(t)
+	ctx := context.Background()
+	user := "dddddddd-dddd-dddd-dddd-dddddddddddd"
+	show := "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+
+	if err := app.Handle(ctx, mkEvent(t, "user.registered", map[string]any{
+		"user_id": user, "email": "liker@example.com", "display_name": "Liker",
+	})); err != nil {
+		t.Fatalf("handle registered: %v", err)
+	}
+
+	count := func(q string) int {
+		var n int
+		if err := app.Store.Pool().QueryRow(ctx, q).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	likeEvents := `SELECT count(*) FROM outbox_events WHERE envelope->>'event_type' = 'user.liked'`
+
+	body := map[string]string{"type": "show", "id": show, "show_id": show}
+	if resp, data := req(t, "POST", srv.URL+"/me/likes", body, hdr(user, "USER")); resp.StatusCode != 200 {
+		t.Fatalf("add like: %d %s", resp.StatusCode, data)
+	}
+	if got := count(`SELECT count(*) FROM likes WHERE user_id = '` + user + `'`); got != 1 {
+		t.Fatalf("likes rows: want 1, got %d", got)
+	}
+	if got := count(likeEvents); got != 1 {
+		t.Fatalf("outbox rows after first like: want 1, got %d", got)
+	}
+
+	// Same like again: ON CONFLICT DO NOTHING, so no new event.
+	if resp, _ := req(t, "POST", srv.URL+"/me/likes", body, hdr(user, "USER")); resp.StatusCode != 200 {
+		t.Fatalf("duplicate like should still 200")
+	}
+	if got := count(likeEvents); got != 1 {
+		t.Fatalf("duplicate like emitted a spurious event: outbox rows = %d", got)
+	}
+}
