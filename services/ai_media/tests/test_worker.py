@@ -36,6 +36,29 @@ class AlwaysFailsPipeline:
         raise RuntimeError("generation exploded")
 
 
+class _StopHere(Exception):
+    pass
+
+
+class _FakeContent:
+    def __init__(self):
+        self.posts = []
+
+    async def post(self, path, body, correlation_id=None):
+        self.posts.append(path)
+        return {"id": "22222222-2222-2222-2222-222222222222"}
+
+    async def patch(self, path, body, correlation_id=None):
+        return {}
+
+
+class _FakeLLM:
+    name = "fake"
+
+    async def generate_script(self, ctx, seed):
+        raise _StopHere
+
+
 @pytest.mark.asyncio
 async def test_attempts_counted_once_per_run(engine):
     sm = session_factory(engine)
@@ -54,3 +77,38 @@ async def test_attempts_counted_once_per_run(engine):
         job = await Repo(session).get_job(job_id)
         assert job.status == "failed"
         assert job.attempts == 2, f"expected 2 attempts, got {job.attempts}"
+
+
+@pytest.mark.asyncio
+async def test_run_episode_creates_missing_episode(engine):
+    """A job from POST /generate/episode names only the show and an outline. The
+    pipeline must create the episode row itself; it used to assert episode_id and
+    fail every such job permanently."""
+    from auralis_ai_media.pipeline.generation import Pipeline
+    from auralis_ai_media.providers.local_llm import LocalLLMProvider
+
+    sm = session_factory(engine)
+    show_id = "11111111-1111-1111-1111-111111111111"
+    llm = LocalLLMProvider()
+    bible = await llm.generate_bible("a keeper who hears the drowned", 6, seed=1)
+    outlines = await llm.generate_outlines(bible, seed=1)
+
+    async with sm() as session:
+        repo = Repo(session)
+        await repo.save_bible(show_id, bible)
+        job = await repo.create_job(
+            kind="episode",
+            status="queued",
+            requested_by="00000000-0000-0000-0000-000000000000",
+            show_id=show_id,
+            prompt={"outline": outlines[0].model_dump(), "seed": 1},
+        )
+        await session.commit()
+
+        content = _FakeContent()
+        pipe = Pipeline(_FakeLLM(), None, None, content, "/tmp")
+        with pytest.raises(_StopHere):
+            await pipe.run_episode(repo, job)
+
+        assert str(job.episode_id) == "22222222-2222-2222-2222-222222222222"
+        assert "/internal/authoring/episodes" in content.posts

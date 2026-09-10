@@ -122,8 +122,7 @@ class Pipeline:
 
     async def run_episode(self, repo: Repo, job: models.GenerationJob) -> None:
         show_id = job.show_id
-        episode_id = job.episode_id
-        assert show_id and episode_id
+        assert show_id
         seed = int(job.prompt.get("seed", 0))
         outline = _outline_from(job.prompt["outline"])
 
@@ -132,6 +131,28 @@ class Pipeline:
             raise RuntimeError(f"no story bible for show {show_id}")
 
         language = normalize(job.prompt.get("language") or bible.language)
+
+        # run_series creates every episode row up front and sets job.episode_id.
+        # A job from POST /generate/episode names only the show and an outline, so
+        # the row does not exist yet: create it here the same way run_series does,
+        # otherwise the job fails permanently with no episode to attach media to.
+        episode_id = job.episode_id
+        if not episode_id:
+            episode = await self.content.post(
+                "/internal/authoring/episodes",
+                {
+                    "show_id": show_id,
+                    "season_number": 1,
+                    "number": outline.number,
+                    "title": outline.title,
+                    "synopsis": outline.summary[:580],
+                    "ai_job_id": job.id,
+                },
+                correlation_id=job.id,
+            )
+            episode_id = episode["id"]
+            job.episode_id = episode_id
+            await repo.s.flush()
 
         ctx = ContinuityContext(
             concept=bible.concept,
