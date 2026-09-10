@@ -31,6 +31,9 @@ describe("formatCount", () => {
     expect(formatCount(23000)).toBe("23k");
     expect(formatCount(2_400_000)).toBe("2.4M");
   });
+  it("rolls up to millions instead of a four-digit k", () => {
+    expect(formatCount(999_999)).toBe("1.0M");
+  });
 });
 
 describe("coverStyle", () => {

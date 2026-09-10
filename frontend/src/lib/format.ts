@@ -17,7 +17,9 @@ export function formatRuntime(totalSeconds: number): string {
 
 export function formatCount(n: number): string {
   if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
+  // 999_999 rounds to 1000k, which should read as 1.0M — switch to the M
+  // scale once the k value would round to four digits.
+  if (n < 950_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
   return `${(n / 1_000_000).toFixed(1)}M`;
 }
 
