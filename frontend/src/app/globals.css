@@ -145,6 +145,50 @@ body {
   }
 }
 
+/* The player's progress bar: a hairline track with a small warm handle, shared
+   by the mini player's flush bottom edge and the expanded sheet. The track fill
+   is a gradient set inline since it moves with playback. */
+.player-scrub {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+}
+.player-scrub:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.player-scrub::-webkit-slider-runnable-track {
+  height: 3px;
+}
+.player-scrub::-moz-range-track {
+  height: 3px;
+}
+.player-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4px;
+  border-radius: 9999px;
+  background: #f0c37e;
+  box-shadow: 0 0 0 3px rgba(226, 162, 77, 0.22);
+}
+.player-scrub::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 9999px;
+  background: #f0c37e;
+}
+.player-scrub:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(84, 208, 204, 0.6);
+}
+.player-scrub:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(84, 208, 204, 0.6);
+}
+
 @layer utilities {
   /* Shimmering text used sparingly on the AI headline. */
   .text-tide {
