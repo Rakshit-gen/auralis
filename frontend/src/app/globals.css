@@ -106,6 +106,34 @@ body {
   .btn-tide:hover::before {
     animation-duration: 1.6s;
   }
+  /* A quieter, outlined button whose label and border each catch a passing
+     band of light on a loop. VengeanceUI's animated-button adapted to the
+     palette (signal accent) and rebuilt on CSS so it needs no motion library. */
+  .btn-shine {
+    @apply btn relative overflow-hidden border border-ink-700 bg-ink-900 text-bone-100 hover:border-signal/50 hover:scale-[1.02] active:scale-[0.98];
+  }
+  .btn-shine > span {
+    @apply relative z-[1] inline-flex items-center gap-2;
+    -webkit-mask-image: linear-gradient(-75deg, #fff 30%, rgba(255, 255, 255, 0.4) 50%, #fff 70%);
+    mask-image: linear-gradient(-75deg, #fff 30%, rgba(255, 255, 255, 0.4) 50%, #fff 70%);
+    -webkit-mask-size: 250% 100%;
+    mask-size: 250% 100%;
+    animation: shine-text 2s linear infinite;
+  }
+  .btn-shine::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(-75deg, transparent 35%, rgba(84, 208, 204, 0.85) 50%, transparent 65%);
+    background-size: 250% 100%;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: shine-border 2s linear infinite;
+  }
   .field {
     @apply w-full rounded-lg border border-ink-600 bg-ink-950 px-3 py-2 text-sm text-bone-100 placeholder:text-ink-500 focus:border-signal focus:outline-none;
   }
@@ -149,6 +177,26 @@ body {
   }
 }
 
+@keyframes shine-text {
+  from {
+    -webkit-mask-position: 150% 0;
+    mask-position: 150% 0;
+  }
+  to {
+    -webkit-mask-position: -150% 0;
+    mask-position: -150% 0;
+  }
+}
+
+@keyframes shine-border {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
 .grain-overlay::after {
   content: "";
   position: fixed;
@@ -172,5 +220,13 @@ body {
   }
   .text-tide {
     animation: none;
+  }
+  /* The moving light is decorative; leave a plain outlined button. */
+  .btn-shine > span {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .btn-shine::before {
+    display: none;
   }
 }

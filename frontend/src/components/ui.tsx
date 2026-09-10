@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export function Spinner({ label = "Loading" }: { label?: string }) {
   return (
@@ -79,6 +79,23 @@ export function SectionHeader({
 
 export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded-lg bg-ink-800 ${className}`} />;
+}
+
+/**
+ * A button with a band of light tracing its label and border. Adapted from
+ * VengeanceUI's animated-button to the palette; the motion lives in
+ * `.btn-shine` (globals.css) and drops out under prefers-reduced-motion.
+ */
+export function AnimatedButton({
+  children,
+  className = "",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button {...props} className={`btn-shine ${className}`}>
+      <span>{children}</span>
+    </button>
+  );
 }
 
 export function Chip({
