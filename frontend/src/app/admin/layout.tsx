@@ -20,19 +20,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <p className="eyebrow mb-1">Operations</p>
         <h1 className="mb-4 font-display text-3xl text-bone-100">Admin</h1>
         <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-ink-800">
-          {TABS.map((t) => (
-            <Link
-              key={t.href}
-              href={t.href}
-              className={`shrink-0 border-b-2 px-4 py-2 text-sm transition ${
-                pathname === t.href
-                  ? "border-amber text-amber-soft"
-                  : "border-transparent text-bone-300 hover:text-bone-100"
-              }`}
-            >
-              {t.label}
-            </Link>
-          ))}
+          {TABS.map((t) => {
+            const active =
+              t.href === "/admin"
+                ? pathname === t.href
+                : pathname === t.href || pathname.startsWith(t.href + "/");
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                className={`shrink-0 border-b-2 px-4 py-2 text-sm transition ${
+                  active
+                    ? "border-amber text-amber-soft"
+                    : "border-transparent text-bone-300 hover:text-bone-100"
+                }`}
+              >
+                {t.label}
+              </Link>
+            );
+          })}
         </nav>
         {children}
       </div>
