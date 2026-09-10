@@ -55,8 +55,13 @@ func (a *App) internalCreateShow(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.Unexpected("could not resolve creator"))
 		return
 	}
+	slug, err := a.uniqueShowSlug(ctx, req.Title)
+	if err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not allocate a show slug"))
+		return
+	}
 	sh, err := a.Store.CreateShow(ctx, Show{
-		CreatorID: creator.ID, Title: req.Title, Slug: a.uniqueShowSlug(ctx, req.Title),
+		CreatorID: creator.ID, Title: req.Title, Slug: slug,
 		Synopsis: req.Synopsis, Description: req.Description, LanguageCode: req.LanguageCode,
 		GenreIDs: req.GenreIDs, Tags: normalizeTags(req.Tags), Maturity: req.Maturity,
 		AccentColor: req.AccentColor, CoverImageURL: req.CoverImageURL, IsPremium: req.IsPremium,

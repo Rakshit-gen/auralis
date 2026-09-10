@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/auralis/platform/errcodes"
 	"github.com/auralis/platform/httpx"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type createShowReq struct {
@@ -60,8 +62,13 @@ func (a *App) createShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slug, err := a.uniqueShowSlug(ctx, req.Title)
+	if err != nil {
+		httpx.Error(w, r, errcodes.Unexpected("could not allocate a show slug"))
+		return
+	}
 	sh := Show{
-		CreatorID: creator.ID, Title: req.Title, Slug: a.uniqueShowSlug(ctx, req.Title),
+		CreatorID: creator.ID, Title: req.Title, Slug: slug,
 		Synopsis: req.Synopsis, Description: req.Description, LanguageCode: req.LanguageCode,
 		GenreIDs: req.GenreIDs, Tags: normalizeTags(req.Tags), Maturity: req.Maturity,
 		CoverImageURL: req.CoverImageURL, AccentColor: req.AccentColor, IsPremium: req.IsPremium,
@@ -357,20 +364,27 @@ func (a *App) validateGenres(ctx context.Context, ids []string) error {
 	return nil
 }
 
-// uniqueShowSlug derives a slug from title and appends a suffix on collision.
-func (a *App) uniqueShowSlug(ctx context.Context, title string) string {
+// uniqueShowSlug derives a slug from title and appends a suffix on collision. A
+// non-"not found" lookup error (e.g. the database is unreachable) is returned
+// rather than silently treated as a collision.
+func (a *App) uniqueShowSlug(ctx context.Context, title string) (string, error) {
 	base := slugify(title)
 	if base == "" {
 		base = "show"
 	}
 	slug := base
 	for i := 2; i < 100; i++ {
-		if _, err := a.Store.ShowBySlug(ctx, slug); err == ErrNotFound {
-			return slug
+		_, err := a.Store.ShowBySlug(ctx, slug)
+		if errors.Is(err, ErrNotFound) {
+			return slug, nil
+		}
+		if err != nil {
+			return "", err
 		}
 		slug = fmt.Sprintf("%s-%d", base, i)
 	}
-	return fmt.Sprintf("%s-%d", base, len(title))
+	// 98 numbered variants are all taken: fall back to a random suffix.
+	return fmt.Sprintf("%s-%s", base, uuid.NewString()[:8]), nil
 }
 
 func normalizeTags(in []string) []string {
