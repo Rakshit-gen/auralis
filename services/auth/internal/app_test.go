@@ -62,7 +62,8 @@ func TestRegisterLoginFlow(t *testing.T) {
 	defer srv.Close()
 
 	reg := registerUser(t, srv.URL, "listener@example.com")
-	if reg.User.Roles[0] != "USER" || reg.Tokens.AccessToken == "" || reg.Tokens.RefreshToken == "" {
+	if len(reg.User.Roles) != 1 || reg.User.Roles[0] != "USER" ||
+		reg.Tokens.AccessToken == "" || reg.Tokens.RefreshToken == "" {
 		t.Fatalf("unexpected register response: %+v", reg)
 	}
 
