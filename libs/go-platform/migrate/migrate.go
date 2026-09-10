@@ -17,8 +17,27 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// migrateLockKey is an arbitrary fixed key for the session advisory lock that
+// serializes concurrent migrators.
+const migrateLockKey = 0x6175726d6967 // "aurmig"
+
 // Run applies every *.sql file in dir of fsys that has not been applied yet.
 func Run(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, dir string) error {
+	// A rolling deploy or a multi-replica service starts several instances that
+	// all call Run at once. Without a lock they race the exists-check/apply and
+	// one instance crash-loops on "relation already exists" until another wins.
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrateLockKey); err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, migrateLockKey)
+	}()
+
 	if _, err := pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version    TEXT PRIMARY KEY,
