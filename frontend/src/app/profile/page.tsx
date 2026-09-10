@@ -14,6 +14,7 @@ function ProfileInner() {
 
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
+    enabled: !!user?.id,
     queryFn: () => api<{ display_name: string; bio: string; avatar_url: string }>("/me/profile"),
   });
 
