@@ -11,10 +11,17 @@ function SearchInner() {
   const router = useRouter();
   const initial = params.get("q") ?? "";
   const [q, setQ] = useState(initial);
+  const [debouncedQ, setDebouncedQ] = useState(initial);
 
   useEffect(() => setQ(initial), [initial]);
 
-  const { data, isLoading, error, refetch, isFetched } = useSearch(q);
+  // Hold off on querying until typing pauses.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQ(q), 250);
+    return () => clearTimeout(id);
+  }, [q]);
+
+  const { data, isLoading, error, refetch, isFetched } = useSearch(debouncedQ);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +50,7 @@ function SearchInner() {
         <>
           {data && (
             <p className="mb-4 text-sm text-bone-400">
-              {data.total} {data.total === 1 ? "result" : "results"} for &ldquo;{q}&rdquo;
+              {data.total} {data.total === 1 ? "result" : "results"} for &ldquo;{debouncedQ}&rdquo;
               {typeof data.took_ms === "number" && ` · ${data.took_ms}ms`}
             </p>
           )}
