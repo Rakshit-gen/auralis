@@ -64,7 +64,7 @@ function HomeInner() {
         <SectionHeader eyebrow={feed?.strategy === "personalized_hybrid" ? "Tuned to your listening" : "To get you started"} title="Your feed" href="/discover" />
         {feedLoading && <Spinner label="Building your feed" />}
         {feedResolved.length > 0 && <ShowRail shows={feedResolved} reasons={reasons} />}
-        {!feedLoading && feedResolved.length === 0 && (
+        {!feedLoading && feed && feed.items.length === 0 && (
           <p className="text-sm text-bone-400">
             Listen to a few episodes and this feed will start reshaping itself.
           </p>
