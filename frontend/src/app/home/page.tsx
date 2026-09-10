@@ -32,7 +32,9 @@ function HomeInner() {
   const { data: recent } = useShows({ sort: "recent", limit: 15 });
 
   const feedShowIds = feed?.items.map((i) => i.show_id) ?? [];
-  const { data: feedShows } = useShows({ limit: 40 });
+  // Share the limit:100 catalog page that useTrending/useCoverLookup already
+  // load; limit:40 dropped feed picks that sat outside the first 40 shows.
+  const { data: feedShows } = useShows({ limit: 100 });
   const byId = new Map((feedShows?.shows ?? []).map((s) => [s.id, s]));
   const feedResolved: Show[] = feedShowIds.map((id) => byId.get(id)).filter(Boolean) as Show[];
   const reasons: Record<string, string> = {};
