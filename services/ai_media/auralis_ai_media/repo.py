@@ -52,7 +52,8 @@ class Repo:
         self.s.add(models.JobEvent(job_id=job.id, status=status, note=note[:1000]))
 
     async def fail_job(self, job: models.GenerationJob, error: str) -> None:
-        job.attempts += 1
+        # attempts is bumped once per run by the worker when it claims the job;
+        # don't count the final failure twice.
         job.error = error[:2000]
         await self.advance_job(job, "failed", job.progress, error)
 
