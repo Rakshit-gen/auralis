@@ -57,6 +57,10 @@ export function PlayerBar() {
       const t = e.target as HTMLElement;
       if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
       if (!current) return;
+      if (e.key === "Escape" && expanded) {
+        setExpanded(false);
+        return;
+      }
       switch (e.key) {
         case " ":
         case "k":
@@ -93,7 +97,7 @@ export function PlayerBar() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current, togglePlay, skip, next, previous, setVolume, volume]);
+  }, [current, expanded, setExpanded, togglePlay, skip, next, previous, setVolume, volume]);
 
   if (!current) return null;
 
@@ -130,8 +134,8 @@ export function PlayerBar() {
   return (
     <>
       {expanded && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-ink-950/95 backdrop-blur-lg">
-          <div className="container-page flex flex-1 flex-col items-center justify-center gap-8 py-16">
+        <div className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-ink-950/95 backdrop-blur-lg">
+          <div className="container-page flex min-h-full flex-1 flex-col items-center justify-center gap-8 py-16">
             <button onClick={() => setExpanded(false)} className="btn-quiet self-end" aria-label="Close full player">
               Collapse
             </button>
