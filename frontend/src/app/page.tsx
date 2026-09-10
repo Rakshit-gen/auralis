@@ -9,6 +9,7 @@ import { ShowCardCompact } from "@/components/show-card";
 import { LogoMark } from "@/components/logo";
 import { SparkIcon, WaveIcon } from "@/components/icons";
 import { CreatorPipeline, GenreStrip, HowItWorks } from "@/components/landing-sections";
+import { Skeleton } from "@/components/ui";
 
 const BRIEF_SAMPLES = [
   "A lighthouse keeper starts receiving weather reports for a coast that no longer exists.",
@@ -19,7 +20,8 @@ const BRIEF_SAMPLES = [
 export default function Landing() {
   const { user, ready } = useAuth();
   const router = useRouter();
-  const { data: trending } = useTrending();
+  const { data: trending, isLoading, isError, isFetching } = useTrending();
+  const trendingWarming = isLoading || (isError && isFetching);
 
   useEffect(() => {
     if (ready && user) router.replace("/home");
@@ -64,17 +66,27 @@ export default function Landing() {
         <aside className="surface animate-fade-up p-5" style={{ animationDelay: "120ms" }}>
           <p className="eyebrow mb-3">Trending right now</p>
           <div className="space-y-2">
-            {(trending ?? []).slice(0, 6).map((t) => (
-              <ShowCardCompact
-                key={t.show_id}
-                title={t.title}
-                slug={t.slug}
-                meta={`${t.plays} plays`}
-                cover={t.cover_image_url}
-                accent={t.accent_color}
-              />
-            ))}
-            {!trending?.length && (
+            {trendingWarming
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3" aria-hidden>
+                    <Skeleton className="h-12 w-12 shrink-0" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                  </div>
+                ))
+              : (trending ?? []).slice(0, 6).map((t) => (
+                  <ShowCardCompact
+                    key={t.show_id}
+                    title={t.title}
+                    slug={t.slug}
+                    meta={`${t.plays} plays`}
+                    cover={t.cover_image_url}
+                    accent={t.accent_color}
+                  />
+                ))}
+            {!trendingWarming && !trending?.length && (
               <p className="px-1 py-8 text-center text-sm text-bone-400">
                 The catalog is warming up.
               </p>
