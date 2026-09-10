@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePlayer } from "@/stores/player";
+import { useCoverLookup } from "@/lib/hooks";
 import { formatDuration, coverStyle } from "@/lib/format";
 import {
   Back15Icon,
@@ -104,6 +105,8 @@ export function PlayerBar() {
   const setVolume = usePlayer((s) => s.setVolume);
   const setExpanded = usePlayer((s) => s.setExpanded);
 
+  const covers = useCoverLookup();
+
   // Global keyboard controls, disabled while typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -156,6 +159,8 @@ export function PlayerBar() {
 
   if (!current) return null;
 
+  const art = covers.get(current.showId);
+  const cover = coverStyle(art?.accent || "#e2a24d", current.showId, art?.cover || undefined);
   const remaining = Math.max(0, (duration || 0) - currentTime);
 
   const playButton = (
@@ -185,7 +190,7 @@ export function PlayerBar() {
               <div className="flex items-start gap-3.5">
                 <span
                   className="h-16 w-16 shrink-0 rounded-xl ring-1 ring-white/10"
-                  style={coverStyle("#e2a24d", current.showId)}
+                  style={cover}
                 />
                 <div className="min-w-0 flex-1">
                   <Link
@@ -282,7 +287,7 @@ export function PlayerBar() {
               >
                 <span
                   className="h-12 w-12 shrink-0 rounded-xl ring-1 ring-white/10"
-                  style={coverStyle("#e2a24d", current.showId)}
+                  style={cover}
                 />
                 <span className="min-w-0">
                   <span className="block truncate font-display text-[15px] leading-tight text-bone-100">
