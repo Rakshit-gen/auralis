@@ -9,9 +9,25 @@ import { PlayerBar } from "@/components/player/player-bar";
 import { ShortcutsHelp } from "@/components/player/shortcuts";
 import { Analytics } from "@vercel/analytics/next";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const description = "Serialized audio stories you can follow, stream, and pick up anywhere.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: { default: "Auralis", template: "%s · Auralis" },
-  description: "Serialized audio stories you can follow, stream, and pick up anywhere.",
+  description,
+  openGraph: {
+    type: "website",
+    siteName: "Auralis",
+    title: "Auralis — serialized audio fiction",
+    description,
+    url: siteUrl,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Auralis — serialized audio fiction",
+    description,
+  },
 };
 
 export const viewport: Viewport = {
