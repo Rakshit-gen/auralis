@@ -27,14 +27,18 @@ export const SkipFwdIcon = ({ className = base }: IconProps) => (
 );
 
 export const Back15Icon = ({ className = base }: IconProps) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
-    <path d="M12 4a8 8 0 1 1-7.5 5.3M4 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5" />
+    <text x="12.5" y="15.6" textAnchor="middle" fill="currentColor" stroke="none" fontSize="8.5" fontWeight="700" fontFamily="ui-sans-serif, system-ui, sans-serif">15</text>
   </svg>
 );
 
 export const Fwd30Icon = ({ className = base }: IconProps) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden>
-    <path d="M12 4a8 8 0 1 0 7.5 5.3M20 4v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+    <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+    <path d="M21 3v5h-5" />
+    <text x="11.5" y="15.6" textAnchor="middle" fill="currentColor" stroke="none" fontSize="8.5" fontWeight="700" fontFamily="ui-sans-serif, system-ui, sans-serif">30</text>
   </svg>
 );
 
