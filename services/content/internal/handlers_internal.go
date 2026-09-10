@@ -170,8 +170,18 @@ func (a *App) internalUpdateEpisode(w http.ResponseWriter, r *http.Request) {
 		if req.ProcessingError != nil {
 			errMsg = *req.ProcessingError
 		}
-		if err := a.Store.SetEpisodeProcessing(ctx, e.ID, *req.Processing, errMsg); err != nil {
+		tx, err := a.Store.Pool().Begin(ctx)
+		if err != nil {
+			httpx.Error(w, r, errcodes.Unexpected("database unavailable"))
+			return
+		}
+		if err := a.Store.SetEpisodeProcessing(ctx, tx, e.ID, *req.Processing, errMsg); err != nil {
+			_ = tx.Rollback(ctx)
 			httpx.Error(w, r, errcodes.BadRequest("invalid processing state"))
+			return
+		}
+		if err := tx.Commit(ctx); err != nil {
+			httpx.Error(w, r, errcodes.Unexpected("could not update processing state"))
 			return
 		}
 	}

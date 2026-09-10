@@ -499,9 +499,10 @@ func (s *Store) SetEpisodeStatus(ctx context.Context, tx pgx.Tx, id, from, to st
 	return nil
 }
 
-// SetEpisodeProcessing updates the processing state and clears/sets the error.
-func (s *Store) SetEpisodeProcessing(ctx context.Context, id, state, errMsg string) error {
-	_, err := s.pool.Exec(ctx,
+// SetEpisodeProcessing updates the processing state and clears/sets the error,
+// inside the caller's transaction.
+func (s *Store) SetEpisodeProcessing(ctx context.Context, tx pgx.Tx, id, state, errMsg string) error {
+	_, err := tx.Exec(ctx,
 		`UPDATE episodes SET processing = $2::processing_status, processing_error = $3, updated_at = now()
 		 WHERE id = $1`, id, state, errMsg)
 	return err
@@ -649,16 +650,31 @@ func (s *Store) CreateUpload(ctx context.Context, episodeID, key, contentType st
 	return id, err
 }
 
-func (s *Store) ConfirmUpload(ctx context.Context, uploadID string, size int64) (string, string, error) {
-	var episodeID, key string
-	err := s.pool.QueryRow(ctx,
-		`UPDATE media_uploads SET status = 'uploaded', size_bytes = $2, confirmed_at = now()
-		 WHERE id = $1 AND status = 'pending' RETURNING episode_id, object_key`,
-		uploadID, size).Scan(&episodeID, &key)
+// PendingUpload returns the episode id and object key for an upload that is
+// still awaiting confirmation.
+func (s *Store) PendingUpload(ctx context.Context, uploadID string) (episodeID, key string, err error) {
+	err = s.pool.QueryRow(ctx,
+		`SELECT episode_id, object_key FROM media_uploads WHERE id = $1 AND status = 'pending'`,
+		uploadID).Scan(&episodeID, &key)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", "", ErrNotFound
 	}
 	return episodeID, key, err
+}
+
+// ConfirmUpload marks a pending upload confirmed, recording its real object
+// size, inside the caller's transaction.
+func (s *Store) ConfirmUpload(ctx context.Context, tx pgx.Tx, uploadID string, size int64) error {
+	ct, err := tx.Exec(ctx,
+		`UPDATE media_uploads SET status = 'uploaded', size_bytes = $2, confirmed_at = now()
+		 WHERE id = $1 AND status = 'pending'`, uploadID, size)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // --- idempotency for the consumer ---
