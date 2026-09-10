@@ -53,7 +53,17 @@ class _FakeContent:
 
 
 class _FakeLLM:
+    """Real outline generation, but stop before the expensive script/TTS steps."""
+
     name = "fake"
+
+    def __init__(self):
+        from auralis_ai_media.providers.local_llm import LocalLLMProvider
+
+        self._local = LocalLLMProvider()
+
+    async def generate_outlines(self, bible, seed, language="en"):
+        return await self._local.generate_outlines(bible, seed, language)
 
     async def generate_script(self, ctx, seed):
         raise _StopHere
@@ -80,18 +90,16 @@ async def test_attempts_counted_once_per_run(engine):
 
 
 @pytest.mark.asyncio
-async def test_run_episode_creates_missing_episode(engine):
-    """A job from POST /generate/episode names only the show and an outline. The
-    pipeline must create the episode row itself; it used to assert episode_id and
-    fail every such job permanently."""
+async def test_run_episode_resolves_outline_and_creates_episode(engine):
+    """A standalone /generate/episode job carries only an episode number: the
+    pipeline resolves the outline and creates the episode row. It used to assert
+    episode_id was set and fail every such job permanently."""
     from auralis_ai_media.pipeline.generation import Pipeline
     from auralis_ai_media.providers.local_llm import LocalLLMProvider
 
     sm = session_factory(engine)
     show_id = "11111111-1111-1111-1111-111111111111"
-    llm = LocalLLMProvider()
-    bible = await llm.generate_bible("a keeper who hears the drowned", 6, seed=1)
-    outlines = await llm.generate_outlines(bible, seed=1)
+    bible = await LocalLLMProvider().generate_bible("a keeper who hears the drowned", 6, seed=1)
 
     async with sm() as session:
         repo = Repo(session)
@@ -101,7 +109,8 @@ async def test_run_episode_creates_missing_episode(engine):
             status="queued",
             requested_by="00000000-0000-0000-0000-000000000000",
             show_id=show_id,
-            prompt={"outline": outlines[0].model_dump(), "seed": 1},
+            episode_number=1,
+            prompt={"number": 1, "seed": 1},
         )
         await session.commit()
 

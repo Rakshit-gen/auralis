@@ -60,7 +60,7 @@ def create_api():
         cors_origins=settings.cors_origins,
         readiness={"database": db_ready, "object_storage": store_ready},
     )
-    app.include_router(build_router(sm, pipeline.llm))
+    app.include_router(build_router(sm))
 
     consumer = Consumer(
         settings.kafka_brokers,
