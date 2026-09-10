@@ -17,13 +17,15 @@ class Envelope(BaseModel):
     """Wraps a domain event with routing and tracing metadata."""
 
     event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    event_type: str
-    event_version: int = 1
+    # Required-field checks mirror the Go envelope.Validate(): a message that the
+    # Go platform would reject must not be silently accepted here either.
+    event_type: str = Field(min_length=1)
+    event_version: int = Field(default=1, ge=1)
     occurred_at: datetime = Field(default_factory=_utcnow)
-    producer: str
+    producer: str = Field(min_length=1)
     correlation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     causation_id: str = ""
-    payload: dict[str, Any]
+    payload: dict[str, Any] = Field(min_length=1)
 
     def to_bytes(self) -> bytes:
         return self.model_dump_json().encode("utf-8")
