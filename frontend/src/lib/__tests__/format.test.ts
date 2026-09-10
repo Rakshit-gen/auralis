@@ -60,4 +60,10 @@ describe("relativeTime", () => {
     expect(relativeTime(new Date().toISOString())).toBe("just now");
     expect(relativeTime(new Date(Date.now() - 3 * 60_000).toISOString())).toBe("3m ago");
   });
+  it("returns empty for an unparseable date", () => {
+    expect(relativeTime("not-a-date")).toBe("");
+  });
+  it("treats a future timestamp as just now", () => {
+    expect(relativeTime(new Date(Date.now() + 60 * 60_000).toISOString())).toBe("just now");
+  });
 });
