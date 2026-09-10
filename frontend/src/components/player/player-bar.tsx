@@ -323,7 +323,7 @@ export function PlayerBar() {
               </div>
             </div>
 
-            <div className="mt-3 flex items-center gap-1.5">
+            <div className="mt-3 flex items-center gap-2">
               <TransportBtn label="Back 15 seconds" onClick={() => skip(-15)}>
                 <Back15Icon className="h-[18px] w-[18px]" />
               </TransportBtn>
