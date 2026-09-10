@@ -21,6 +21,7 @@ type AuthState = {
   register: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  clearError: () => void;
   hasRole: (role: string) => boolean;
 };
 
@@ -101,6 +102,8 @@ export const useAuth = create<AuthState>((set, get) => ({
       /* leave current state */
     }
   },
+
+  clearError: () => set({ error: null }),
 
   hasRole: (role) => get().user?.roles.includes(role) ?? false,
 }));

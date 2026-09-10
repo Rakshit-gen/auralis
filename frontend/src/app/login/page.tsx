@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/stores/auth";
@@ -10,9 +10,12 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/home";
-  const { login, loading, error } = useAuth();
+  const { login, loading, error, clearError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // Drop any error left over from a previous attempt on another auth page.
+  useEffect(() => clearError, [clearError]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/stores/auth";
@@ -10,10 +10,13 @@ function RegisterForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/home";
-  const { register, loading, error } = useAuth();
+  const { register, loading, error, clearError } = useAuth();
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+
+  // Drop any error left over from a previous attempt on another auth page.
+  useEffect(() => clearError, [clearError]);
 
   const weak = password.length > 0 && (password.length < 10 || !/[0-9!@#$%^&*]/.test(password));
 
