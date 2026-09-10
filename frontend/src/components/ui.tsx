@@ -92,7 +92,9 @@ export function Chip({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`rounded-full border px-3 py-1 text-sm transition ${
         active
           ? "border-amber bg-amber/15 text-amber-soft"

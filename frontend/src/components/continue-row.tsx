@@ -27,8 +27,8 @@ export function ContinueRow({ item }: { item: ContinueItem }) {
     void authorize({
       episodeId: item.episode_id,
       showId: item.show_id,
-      showSlug: "",
-      showTitle: "",
+      showSlug: cover?.slug ?? "",
+      showTitle: cover?.title ?? "",
       episodeTitle: episode?.title ?? "Episode",
       episodeNumber: episode?.number ?? 0,
     });
@@ -58,10 +58,10 @@ export function ContinueRow({ item }: { item: ContinueItem }) {
       </button>
       {episode && (
         <Link
-          href={`/shows/${episode.show_id}`}
-          className="hidden shrink-0 text-xs text-bone-400 hover:text-bone-200 sm:block"
+          href={`/shows/${cover?.slug || episode.show_id}`}
+          className="hidden max-w-[8rem] shrink-0 truncate text-xs text-bone-400 hover:text-bone-200 sm:block"
         >
-          Show
+          {cover?.title || "Show"}
         </Link>
       )}
     </div>

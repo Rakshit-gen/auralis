@@ -11,6 +11,7 @@ import {
 } from "@/lib/hooks";
 import { useAuth } from "@/stores/auth";
 import { ShowRail, ShowCardCompact } from "@/components/show-card";
+import { formatCount } from "@/lib/format";
 import { ContinueRow } from "@/components/continue-row";
 import { SectionHeader, Spinner } from "@/components/ui";
 import type { Show } from "@/lib/types";
@@ -32,7 +33,9 @@ function HomeInner() {
   const { data: recent } = useShows({ sort: "recent", limit: 15 });
 
   const feedShowIds = feed?.items.map((i) => i.show_id) ?? [];
-  const { data: feedShows } = useShows({ limit: 40 });
+  // Share the limit:100 catalog page that useTrending/useCoverLookup already
+  // load; limit:40 dropped feed picks that sat outside the first 40 shows.
+  const { data: feedShows } = useShows({ limit: 100 });
   const byId = new Map((feedShows?.shows ?? []).map((s) => [s.id, s]));
   const feedResolved: Show[] = feedShowIds.map((id) => byId.get(id)).filter(Boolean) as Show[];
   const reasons: Record<string, string> = {};
@@ -62,7 +65,7 @@ function HomeInner() {
         <SectionHeader eyebrow={feed?.strategy === "personalized_hybrid" ? "Tuned to your listening" : "To get you started"} title="Your feed" href="/discover" />
         {feedLoading && <Spinner label="Building your feed" />}
         {feedResolved.length > 0 && <ShowRail shows={feedResolved} reasons={reasons} />}
-        {!feedLoading && feedResolved.length === 0 && (
+        {!feedLoading && feed && feed.items.length === 0 && (
           <p className="text-sm text-bone-400">
             Listen to a few episodes and this feed will start reshaping itself.
           </p>
@@ -87,7 +90,7 @@ function HomeInner() {
                   <ShowCardCompact
                     title={t.title}
                     slug={t.slug}
-                    meta={`${t.plays} plays`}
+                    meta={`${formatCount(t.plays)} plays`}
                     cover={t.cover_image_url}
                     accent={t.accent_color}
                   />

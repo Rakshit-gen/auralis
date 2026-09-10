@@ -31,6 +31,9 @@ describe("formatCount", () => {
     expect(formatCount(23000)).toBe("23k");
     expect(formatCount(2_400_000)).toBe("2.4M");
   });
+  it("rolls up to millions instead of a four-digit k", () => {
+    expect(formatCount(999_999)).toBe("1.0M");
+  });
 });
 
 describe("coverStyle", () => {
@@ -56,5 +59,11 @@ describe("relativeTime", () => {
     expect(relativeTime(null)).toBe("");
     expect(relativeTime(new Date().toISOString())).toBe("just now");
     expect(relativeTime(new Date(Date.now() - 3 * 60_000).toISOString())).toBe("3m ago");
+  });
+  it("returns empty for an unparseable date", () => {
+    expect(relativeTime("not-a-date")).toBe("");
+  });
+  it("treats a future timestamp as just now", () => {
+    expect(relativeTime(new Date(Date.now() + 60 * 60_000).toISOString())).toBe("just now");
   });
 });

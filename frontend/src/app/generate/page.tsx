@@ -135,6 +135,7 @@ function GenerateInner() {
     return Math.min(EPISODE_MAX, Math.max(EPISODE_MIN, n));
   })();
 
+  const briefTooShort = brief.trim().length > 0 && brief.trim().length < 10;
   const canSubmit = brief.trim().length >= 10 && !busy && !jobRunning;
 
   const submit = async (e: React.FormEvent) => {
@@ -188,7 +189,12 @@ function GenerateInner() {
             onChange={(e) => setBrief(e.target.value)}
             placeholder="A night-shift paramedic in a coastal city starts getting radio calls from addresses that do not exist yet."
           />
-          <span className="mt-1 block text-xs text-bone-500">{brief.length}/2000</span>
+          <span className="mt-1 flex justify-between text-xs text-bone-500">
+            <span className={briefTooShort ? "text-red-400" : ""}>
+              {briefTooShort ? "Give the pipeline at least 10 characters to work with." : " "}
+            </span>
+            <span>{brief.length}/2000</span>
+          </span>
         </label>
 
         <div>

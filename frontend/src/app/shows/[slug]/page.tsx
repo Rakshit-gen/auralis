@@ -59,7 +59,7 @@ export default function ShowPage({ params }: { params: Promise<{ slug: string }>
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end">
             <div
               className="hidden h-56 w-44 shrink-0 rounded-xl border border-ink-700 shadow-lift sm:block"
-              style={coverStyle(show.accent_color || "#d9963f", show.slug, show.cover_image_url)}
+              style={coverStyle(show.accent_color || "#d9963f", show.id, show.cover_image_url)}
             />
             <div className="min-w-0">
               <div className="mb-2 flex flex-wrap items-center gap-2">

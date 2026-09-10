@@ -24,9 +24,10 @@ function Scrubber({ compact = false }: { compact?: boolean }) {
         max={duration || 0}
         step={1}
         value={currentTime}
+        disabled={!duration}
         aria-label="Seek"
         onChange={(e) => requestSeek(Number(e.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ink-700 accent-amber"
+        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ink-700 accent-amber disabled:cursor-default disabled:opacity-60"
         style={{ background: `linear-gradient(to right, #d9963f ${pct}%, #26221d ${pct}%)` }}
       />
       {!compact && <span className="w-12 text-xs tabular-nums text-bone-400">{formatDuration(duration)}</span>}
@@ -57,6 +58,10 @@ export function PlayerBar() {
       const t = e.target as HTMLElement;
       if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
       if (!current) return;
+      if (e.key === "Escape" && expanded) {
+        setExpanded(false);
+        return;
+      }
       switch (e.key) {
         case " ":
         case "k":
@@ -64,9 +69,11 @@ export function PlayerBar() {
           togglePlay();
           break;
         case "ArrowLeft":
+          e.preventDefault();
           skip(-15);
           break;
         case "ArrowRight":
+          e.preventDefault();
           skip(30);
           break;
         case "j":
@@ -93,7 +100,7 @@ export function PlayerBar() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current, togglePlay, skip, next, previous, setVolume, volume]);
+  }, [current, expanded, setExpanded, togglePlay, skip, next, previous, setVolume, volume]);
 
   if (!current) return null;
 
@@ -130,8 +137,8 @@ export function PlayerBar() {
   return (
     <>
       {expanded && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-ink-950/95 backdrop-blur-lg">
-          <div className="container-page flex flex-1 flex-col items-center justify-center gap-8 py-16">
+        <div className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-ink-950/95 backdrop-blur-lg">
+          <div className="container-page flex min-h-full flex-1 flex-col items-center justify-center gap-8 py-16">
             <button onClick={() => setExpanded(false)} className="btn-quiet self-end" aria-label="Close full player">
               Collapse
             </button>

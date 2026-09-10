@@ -42,11 +42,11 @@ export function ShortcutsHelp() {
         <h2 className="mb-4 font-display text-xl text-bone-100">Keyboard shortcuts</h2>
         <dl className="space-y-2 text-sm">
           {SHORTCUTS.map(([key, label]) => (
-            <div key={key} className="flex items-center justify-between">
-              <dd className="text-bone-300">{label}</dd>
+            <div key={key} className="flex flex-row-reverse items-center justify-between">
               <dt className="rounded border border-ink-600 bg-ink-950 px-2 py-0.5 font-mono text-xs text-bone-200">
                 {key}
               </dt>
+              <dd className="text-bone-300">{label}</dd>
             </div>
           ))}
         </dl>

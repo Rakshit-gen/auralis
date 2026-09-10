@@ -62,10 +62,14 @@ class PlaybackEventBatcher {
     if (!this.buffer.length) return;
     const events = this.buffer.splice(0);
     const base = process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") || "/api";
+    // Send as an application/json Blob; a bare string posts as text/plain and
+    // the gateway rejects it.
+    const body = new Blob([JSON.stringify({ events })], { type: "application/json" });
     try {
-      navigator.sendBeacon?.(`${base}/playback/events`, JSON.stringify({ events }));
+      const ok = navigator.sendBeacon?.(`${base}/playback/events`, body);
+      if (!ok) this.buffer.unshift(...events);
     } catch {
-      /* best effort on unload */
+      this.buffer.unshift(...events);
     }
   };
 

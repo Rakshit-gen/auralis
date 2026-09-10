@@ -47,7 +47,7 @@ function EpisodeDeepLink({ id }: { id: string }) {
       episodeTitle: data.episode.title,
       episodeNumber: data.episode.number,
     });
-    if (data.show?.slug) router.replace(`/shows/${data.show.slug}`);
+    router.replace(data.show?.slug ? `/shows/${data.show.slug}` : "/discover");
   }, [data, playNow, router, user, authReady, promptSignIn]);
 
   if (isLoading) return <Spinner label="Starting playback" />;

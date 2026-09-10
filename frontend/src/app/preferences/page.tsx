@@ -18,6 +18,7 @@ function PreferencesInner() {
   const [explicitOk, setExplicitOk] = useState(true);
   const [emailUpdates, setEmailUpdates] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!prefs) return;
@@ -34,6 +35,7 @@ function PreferencesInner() {
 
   const save = async () => {
     setStatus(null);
+    setBusy(true);
     try {
       await api("/me/preferences", {
         method: "PUT",
@@ -50,6 +52,8 @@ function PreferencesInner() {
       setStatus("Preferences saved. Your feed will update as you listen.");
     } catch (err) {
       setStatus(err instanceof ApiError ? err.message : "Could not save");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -118,8 +122,8 @@ function PreferencesInner() {
       </section>
 
       <div className="flex items-center gap-3">
-        <button onClick={save} className="btn-primary">
-          Save preferences
+        <button onClick={save} disabled={busy} className="btn-primary">
+          {busy ? "Saving" : "Save preferences"}
         </button>
         {status && <span className="text-sm text-bone-400">{status}</span>}
       </div>
