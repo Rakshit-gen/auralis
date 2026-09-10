@@ -277,7 +277,7 @@ export function PlayerBar() {
 
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-5 sm:pb-6">
         <div className="pointer-events-auto relative mx-auto max-w-[560px] overflow-hidden rounded-2xl border border-white/10 bg-ink-950/90 shadow-lift backdrop-blur-md">
-          <div className="px-4 pb-4 pt-3.5">
+          <div className="p-4">
             <div className="flex items-center gap-3">
               <button
                 type="button"
