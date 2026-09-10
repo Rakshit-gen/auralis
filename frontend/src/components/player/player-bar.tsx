@@ -39,7 +39,7 @@ function Scrubber({ variant = "full" }: { variant?: "full" | "edge" }) {
       onChange={(e) => requestSeek(Number(e.target.value))}
       className={
         variant === "edge"
-          ? "player-scrub absolute inset-x-0 bottom-0 h-1"
+          ? "player-scrub absolute inset-x-3 bottom-1 h-1"
           : "player-scrub h-1.5 w-full rounded-full"
       }
       style={{ background: fill }}
