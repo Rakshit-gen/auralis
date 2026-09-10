@@ -39,6 +39,19 @@ export function relativeTime(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString();
 }
 
+/**
+ * Deterministic bar heights (0.15–1) for a seed string — a stand-in waveform
+ * that stays stable across renders and reloads without shipping peak data.
+ */
+export function sampleBars(seed: string, count = 56): number[] {
+  let h = 2166136261;
+  for (const ch of seed) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return Array.from({ length: count }, () => {
+    h = (Math.imul(h, 1103515245) + 12345) >>> 0;
+    return 0.15 + ((h % 1000) / 1000) * 0.85;
+  });
+}
+
 // Cover art for a show. When it has a real generated image we use that; without
 // one we fall back to a deterministic gradient from the accent color and seed so
 // the catalog still has art. The gradient stays underneath as a load fallback.

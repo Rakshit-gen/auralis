@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coverStyle, formatCount, formatDuration, formatRuntime, relativeTime } from "@/lib/format";
+import { coverStyle, formatCount, formatDuration, formatRuntime, relativeTime, sampleBars } from "@/lib/format";
 
 describe("formatDuration", () => {
   it("shows m:ss under an hour", () => {
@@ -51,6 +51,22 @@ describe("coverStyle", () => {
   });
   it("treats empty string as no image", () => {
     expect(coverStyle("#c98a3c", "x", "").backgroundSize).toBeUndefined();
+  });
+});
+
+describe("sampleBars", () => {
+  it("is deterministic for a seed and length", () => {
+    expect(sampleBars("mystery", 12)).toEqual(sampleBars("mystery", 12));
+  });
+  it("differs by seed and honours the count", () => {
+    expect(sampleBars("mystery", 8)).not.toEqual(sampleBars("noir", 8));
+    expect(sampleBars("noir", 20)).toHaveLength(20);
+  });
+  it("keeps every bar within 0.15–1", () => {
+    for (const h of sampleBars("science-fiction", 64)) {
+      expect(h).toBeGreaterThanOrEqual(0.15);
+      expect(h).toBeLessThanOrEqual(1);
+    }
   });
 });
 

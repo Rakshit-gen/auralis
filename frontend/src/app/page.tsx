@@ -8,7 +8,8 @@ import { useShows, useTrending } from "@/lib/hooks";
 import { coverStyle, formatCount } from "@/lib/format";
 import { LogoMark } from "@/components/logo";
 import { SparkIcon } from "@/components/icons";
-import { CreatorPipeline, GenreStrip, HowItWorks } from "@/components/landing-sections";
+import { CreatorPipeline } from "@/components/landing-sections";
+import { PlayAMinute } from "@/components/play-a-minute";
 import { Skeleton } from "@/components/ui";
 import type { Show } from "@/lib/types";
 
@@ -170,8 +171,7 @@ export default function Landing() {
         </aside>
       </section>
 
-      <HowItWorks />
-      <GenreStrip />
+      <PlayAMinute />
 
       {/* The AI studio: the loudest thing on the page after the headline. */}
       <section className="relative overflow-hidden rounded-2xl border border-signal/30 bg-ink-900/70 p-8 backdrop-blur animate-tide-in sm:p-12">
