@@ -36,6 +36,7 @@ export function AuthGate() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-gate-title"
+      aria-describedby="auth-gate-desc"
     >
       <div
         className="absolute inset-0 bg-ink-950/80 backdrop-blur-sm"
@@ -44,9 +45,11 @@ export function AuthGate() {
       <div className="relative w-full max-w-sm rounded-2xl border border-ink-700 bg-ink-900 p-7 shadow-lift animate-fade-up">
         <div className="mb-4 flex items-center gap-2.5">
           <LogoMark className="h-7 w-7" title="Auralis" />
-          <span className="font-display text-lg text-bone-100">Sign in to listen</span>
+          <span id="auth-gate-title" className="font-display text-lg text-bone-100">
+            Sign in to listen
+          </span>
         </div>
-        <p id="auth-gate-title" className="text-sm text-bone-300">
+        <p id="auth-gate-desc" className="text-sm text-bone-300">
           {reason} Your place in every episode is saved to your account, so you
           can pick up on any device.
         </p>
