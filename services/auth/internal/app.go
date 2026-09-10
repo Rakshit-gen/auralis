@@ -227,13 +227,20 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	norm := normalizeEmail(req.Email)
 	ip := clientIP(r)
 
-	if norm != "" {
-		if failed, _ := a.Store.RecentFailedLogins(ctx, norm, failWindow); failed >= maxFailed {
-			telemetry.Count(service, "login", "throttled")
-			httpx.Error(w, r, errcodes.New(http.StatusTooManyRequests, errcodes.RateLimited,
-				"too many failed attempts, try again later"))
-			return
-		}
+	// An unparseable address can never match an account. Reject it up front so
+	// we neither query for the empty string nor write empty-email rows into
+	// login_attempts (which the per-email throttle keys on).
+	if norm == "" {
+		telemetry.Count(service, "login", "failure")
+		httpx.Error(w, r, errcodes.Unauthed("email or password is incorrect"))
+		return
+	}
+
+	if failed, _ := a.Store.RecentFailedLogins(ctx, norm, failWindow); failed >= maxFailed {
+		telemetry.Count(service, "login", "throttled")
+		httpx.Error(w, r, errcodes.New(http.StatusTooManyRequests, errcodes.RateLimited,
+			"too many failed attempts, try again later"))
+		return
 	}
 
 	user, err := a.Store.UserByEmailNorm(ctx, norm)
