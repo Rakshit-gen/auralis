@@ -69,9 +69,11 @@ export function PlayerBar() {
           togglePlay();
           break;
         case "ArrowLeft":
+          e.preventDefault();
           skip(-15);
           break;
         case "ArrowRight":
+          e.preventDefault();
           skip(30);
           break;
         case "j":
