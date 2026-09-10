@@ -49,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Skip to content
           </a>
           <Nav />
-          <main id="main" className="pb-40 pt-6">
+          <main id="main" className="pb-44 pt-6">
             {children}
           </main>
           <AudioEngine />
