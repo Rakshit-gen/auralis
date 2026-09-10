@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/stores/auth";
 import { LogoMark } from "@/components/logo";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next") || "/home";
   const { register, loading, error } = useAuth();
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -20,7 +22,7 @@ export default function RegisterPage() {
     if (weak) return;
     try {
       await register(email, password, displayName);
-      router.replace("/home");
+      router.replace(next);
     } catch {
       /* error surfaced from the store */
     }
@@ -76,11 +78,22 @@ export default function RegisterPage() {
         </form>
         <p className="mt-4 text-sm text-bone-300">
           Already have an account?{" "}
-          <Link href="/login" className="text-signal-soft">
+          <Link
+            href={`/login${next !== "/home" ? `?next=${encodeURIComponent(next)}` : ""}`}
+            className="text-signal-soft"
+          >
             Sign in
           </Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="container-page py-24" />}>
+      <RegisterForm />
+    </Suspense>
   );
 }
