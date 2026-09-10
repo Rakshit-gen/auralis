@@ -36,13 +36,14 @@ func echoBackend() (*httptest.Server, *echoState) {
 		st.lastUser = r.Header.Get("X-Auralis-User")
 		st.lastRoles = r.Header.Get("X-Auralis-Roles")
 		st.lastSig = r.Header.Get("X-Auralis-Identity-Sig")
+		st.lastSvcToken = r.Header.Get("X-Auralis-Service-Token")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
 	return srv, st
 }
 
-type echoState struct{ lastPath, lastUser, lastRoles, lastSig string }
+type echoState struct{ lastPath, lastUser, lastRoles, lastSig, lastSvcToken string }
 
 func newTestGateway(t *testing.T, backends map[string]string, limit int) *Gateway {
 	t.Helper()
@@ -108,12 +109,16 @@ func TestGatewayAuthEnforcementAndIdentityForwarding(t *testing.T) {
 		t.Fatalf("public catalog GET failed: status %d path %q", resp.StatusCode, contentState.lastPath)
 	}
 
-	// A client-supplied identity header is stripped, not trusted.
+	// Client-supplied trust headers are stripped, not trusted.
 	req, _ = http.NewRequest("GET", gw.URL+"/api/catalog/shows", nil)
 	req.Header.Set("X-Auralis-User", "attacker")
+	req.Header.Set("X-Auralis-Service-Token", "guessed-shared-secret")
 	resp, _ = http.DefaultClient.Do(req)
 	if contentState.lastUser == "attacker" {
 		t.Fatal("gateway forwarded a spoofed identity header")
+	}
+	if contentState.lastSvcToken != "" {
+		t.Fatal("gateway forwarded a client-supplied service token")
 	}
 }
 

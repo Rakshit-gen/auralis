@@ -207,8 +207,11 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Strip any client-supplied identity headers before we set our own.
-	for _, h := range []string{"X-Auralis-User", "X-Auralis-Roles", "X-Auralis-Identity-Sig"} {
+	// Strip any client-supplied trust headers before we set our own. The
+	// service token in particular must never be forwarded from a client: it is
+	// a shared secret that grants unauthenticated service-to-service access, so
+	// a client that learned it could otherwise reach every /internal/* route.
+	for _, h := range []string{"X-Auralis-User", "X-Auralis-Roles", "X-Auralis-Identity-Sig", "X-Auralis-Service-Token"} {
 		r.Header.Del(h)
 	}
 	if authed {
