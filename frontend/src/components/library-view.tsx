@@ -26,14 +26,14 @@ const TABS = [
 
 type Tab = (typeof TABS)[number]["key"];
 
-function EpisodeTitle({ id, showId }: { id: string; showId: string }) {
+function EpisodeTitle({ id, href }: { id: string; href: string }) {
   const { data } = useQuery({
     queryKey: ["episode", id],
     queryFn: () => api<Episode>(`/catalog/episodes/${id}`, { auth: false }),
     staleTime: 5 * 60_000,
   });
   return (
-    <Link href={`/shows/${showId}`} className="min-w-0 flex-1">
+    <Link href={href} className="min-w-0 flex-1">
       <p className="truncate font-display text-bone-100">{data?.title ?? "Episode"}</p>
       {data && <p className="text-xs text-bone-400">Episode {data.number}</p>}
     </Link>
@@ -49,6 +49,8 @@ export function LibraryView({ initial }: { initial: Tab }) {
   const covers = useCoverLookup();
   const thumb = (showId: string) =>
     coverStyle(covers.get(showId)?.accent || "#d9963f", showId, covers.get(showId)?.cover);
+  const showHref = (showId: string) => `/shows/${covers.get(showId)?.slug || showId}`;
+  const showName = (showId: string, fallback: string) => covers.get(showId)?.title || fallback;
 
   return (
     <div className="container-page">
@@ -92,7 +94,7 @@ export function LibraryView({ initial }: { initial: Tab }) {
               {bookmarks.data.map((b) => (
                 <div key={b.episode_id} className="surface flex items-center gap-3 p-3">
                   <div className="h-11 w-11 shrink-0 rounded-lg" style={thumb(b.show_id)} />
-                  <EpisodeTitle id={b.episode_id} showId={b.show_id} />
+                  <EpisodeTitle id={b.episode_id} href={showHref(b.show_id)} />
                   {b.note && <span className="hidden text-xs text-bone-400 sm:block">{b.note}</span>}
                 </div>
               ))}
@@ -111,10 +113,10 @@ export function LibraryView({ initial }: { initial: Tab }) {
                 <div key={`${l.target_type}-${l.target_id}`} className="surface flex items-center gap-3 p-3">
                   <div className="h-11 w-11 shrink-0 rounded-lg" style={thumb(l.show_id)} />
                   {l.target_type === "episode" ? (
-                    <EpisodeTitle id={l.target_id} showId={l.show_id} />
+                    <EpisodeTitle id={l.target_id} href={showHref(l.show_id)} />
                   ) : (
-                    <Link href={`/shows/${l.show_id}`} className="flex-1 font-display text-bone-100">
-                      Show
+                    <Link href={showHref(l.show_id)} className="flex-1 truncate font-display text-bone-100">
+                      {showName(l.show_id, "Show")}
                     </Link>
                   )}
                   <span className="tag">{l.target_type}</span>
@@ -134,7 +136,7 @@ export function LibraryView({ initial }: { initial: Tab }) {
               {history.data.map((h) => (
                 <div key={h.episode_id} className="surface flex items-center gap-3 p-3">
                   <div className="h-11 w-11 shrink-0 rounded-lg" style={thumb(h.show_id)} />
-                  <EpisodeTitle id={h.episode_id} showId={h.show_id} />
+                  <EpisodeTitle id={h.episode_id} href={showHref(h.show_id)} />
                   <div className="text-right text-xs text-bone-400">
                     <p>{h.completed ? "Finished" : `${formatDuration(h.position_sec)} in`}</p>
                     <p>{relativeTime(h.updated_at)}</p>
@@ -155,11 +157,13 @@ export function LibraryView({ initial }: { initial: Tab }) {
               {follows.data.map((f) => (
                 <Link
                   key={f.show_id}
-                  href={`/shows/${f.show_id}`}
+                  href={showHref(f.show_id)}
                   className="surface flex items-center gap-3 p-3 hover:border-amber/50"
                 >
                   <div className="h-12 w-12 shrink-0 rounded-lg" style={thumb(f.show_id)} />
-                  <span className="font-display text-bone-100">Followed show</span>
+                  <span className="truncate font-display text-bone-100">
+                    {showName(f.show_id, "Followed show")}
+                  </span>
                 </Link>
               ))}
             </div>
