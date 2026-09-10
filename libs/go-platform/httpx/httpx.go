@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -93,8 +94,13 @@ func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		return strings.TrimSpace(strings.Split(xff, ",")[0])
 	}
-	h, _, _ := strings.Cut(r.RemoteAddr, ":")
-	return h
+	// net.SplitHostPort, not strings.Cut on ":", so an IPv6 RemoteAddr
+	// ([2001:db8::1]:54321) yields the address and not "[2001". Otherwise every
+	// IPv6 caller collapses onto one rate-limit bucket and one log "remote".
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 // SecurityHeaders sets conservative response headers on every route.
