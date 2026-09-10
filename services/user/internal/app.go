@@ -77,11 +77,22 @@ func (a *App) Routes(r chi.Router) {
 
 // --- profile / preferences ---
 
+// lookupErr answers a single-row read: 404 only when the row is genuinely
+// absent, 500 for anything else. Collapsing every error to "not found" hid a
+// DB outage and a malformed id behind a 404 that never paged.
+func lookupErr(w http.ResponseWriter, r *http.Request, err error, notFoundMsg string) {
+	if errors.Is(err, ErrNotFound) {
+		httpx.Error(w, r, errcodes.Missing(notFoundMsg))
+		return
+	}
+	httpx.Error(w, r, errcodes.Unexpected("lookup failed"))
+}
+
 func (a *App) getProfile(w http.ResponseWriter, r *http.Request) {
 	id := caller(r)
 	p, err := a.Store.Profile(r.Context(), id)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("profile not found"))
+		lookupErr(w, r, err, "profile not found")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, p)
@@ -108,7 +119,7 @@ func (a *App) updateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := a.Store.UpdateProfile(r.Context(), caller(r), req.DisplayName, req.AvatarURL, req.Bio)
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("profile not found"))
+		lookupErr(w, r, err, "profile not found")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, p)
@@ -117,7 +128,7 @@ func (a *App) updateProfile(w http.ResponseWriter, r *http.Request) {
 func (a *App) getPreferences(w http.ResponseWriter, r *http.Request) {
 	p, err := a.Store.Preferences(r.Context(), caller(r))
 	if err != nil {
-		httpx.Error(w, r, errcodes.Missing("preferences not found"))
+		lookupErr(w, r, err, "preferences not found")
 		return
 	}
 	httpx.JSON(w, http.StatusOK, p)

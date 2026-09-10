@@ -202,6 +202,29 @@ func TestInternalPreferencesDistinguishesNotFoundFromError(t *testing.T) {
 	}
 }
 
+// TestProfileLookupErrorIsNotMaskedAs404 guards the fix for getProfile /
+// getPreferences, which mapped every store error to 404. A malformed user id
+// makes Postgres reject the query (22P02): a 500, not "profile not found".
+func TestProfileLookupErrorIsNotMaskedAs404(t *testing.T) {
+	srv, _ := setup(t)
+
+	resp, _ := req(t, "GET", srv.URL+"/me/profile", nil, hdr("not-a-uuid", "USER"))
+	if resp.StatusCode != 500 {
+		t.Fatalf("malformed id profile: want 500, got %d", resp.StatusCode)
+	}
+	resp, _ = req(t, "GET", srv.URL+"/me/preferences", nil, hdr("not-a-uuid", "USER"))
+	if resp.StatusCode != 500 {
+		t.Fatalf("malformed id preferences: want 500, got %d", resp.StatusCode)
+	}
+
+	// A well-formed but unprovisioned user is still a genuine 404.
+	absent := "99999999-9999-9999-9999-999999999999"
+	resp, _ = req(t, "GET", srv.URL+"/me/profile", nil, hdr(absent, "USER"))
+	if resp.StatusCode != 404 {
+		t.Fatalf("absent profile: want 404, got %d", resp.StatusCode)
+	}
+}
+
 // TestLibraryChangeAndEventCommitTogether guards the atomic-outbox fix: a like
 // and its user.liked event land in the same transaction, and a duplicate like
 // (no state change) emits no second event.
