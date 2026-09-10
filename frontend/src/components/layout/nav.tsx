@@ -145,7 +145,9 @@ export function Nav() {
             key={n.href}
             href={n.href}
             className={`shrink-0 rounded-lg px-3 py-1 text-sm ${
-              pathname === n.href ? "bg-ink-800 text-amber-soft" : "text-bone-300"
+              pathname === n.href || pathname.startsWith(n.href + "/")
+                ? "bg-ink-800 text-amber-soft"
+                : "text-bone-300"
             }`}
           >
             {n.label}
