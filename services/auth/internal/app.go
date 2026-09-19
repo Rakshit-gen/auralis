@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/mail"
 	"strconv"
@@ -578,8 +579,10 @@ func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		return strings.TrimSpace(strings.Split(xff, ",")[0])
 	}
-	h, _, _ := strings.Cut(r.RemoteAddr, ":")
-	return h
+	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return h
+	}
+	return r.RemoteAddr
 }
 
 func queryInt(r *http.Request, key string, def int) int {
