@@ -511,13 +511,16 @@ func entitlementView(e Entitlement) map[string]any {
 	}
 }
 
+// page reads limit and offset, clamping out-of-range values like the content
+// and auth services do. limit=500 used to fall back to 50 rather than the 200
+// cap, and offset had no ceiling at all.
 func page(r *http.Request) (limit, offset int) {
 	limit, offset = 50, 0
-	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 && v <= 200 {
-		limit = v
+	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil {
+		limit = min(max(v, 1), 200)
 	}
-	if v, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil && v >= 0 {
-		offset = v
+	if v, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil {
+		offset = min(max(v, 0), 100_000)
 	}
 	return
 }
