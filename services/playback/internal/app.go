@@ -413,8 +413,8 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 func (a *App) continueListening(w http.ResponseWriter, r *http.Request) {
 	id, _ := authn.FromContext(r.Context())
 	limit := 20
-	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 && v <= 50 {
-		limit = v
+	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil {
+		limit = min(max(v, 1), 50)
 	}
 	items, err := a.Store.ContinueListening(r.Context(), id.UserID, limit)
 	if err != nil {
