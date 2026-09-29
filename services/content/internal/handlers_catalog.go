@@ -3,7 +3,9 @@ package internal
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/auralis/platform/errcodes"
 	"github.com/auralis/platform/httpx"
@@ -122,8 +124,10 @@ func (a *App) getEpisode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) search(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("q")
-	if len(q) < 2 {
+	// Trim here as well as in the store: "  " passes a raw length check, the
+	// store then drops the empty query and the whole catalog comes back.
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if utf8.RuneCountInString(q) < 2 {
 		httpx.Error(w, r, errcodes.BadRequest("q must be at least 2 characters"))
 		return
 	}
