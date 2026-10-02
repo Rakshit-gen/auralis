@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/stores/auth";
-import { SearchIcon, SparkIcon } from "@/components/icons";
+import { SearchIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 
 const NAV = [
@@ -85,7 +85,6 @@ export function Nav() {
           className="btn-tide ml-auto shrink-0 text-sm sm:ml-2"
           title="Open the story studio"
         >
-          <SparkIcon className="h-4 w-4" />
           <span className="hidden lg:inline">Story studio</span>
           <span className="lg:hidden">Studio</span>
         </Link>
@@ -111,7 +110,7 @@ export function Nav() {
                   <p className="truncate text-xs text-bone-400">{user.email}</p>
                 </div>
                 <MenuLink href="/generate" onClick={() => setMenuOpen(false)}>
-                  <SparkIcon className="h-4 w-4 text-signal" /> Generate a story
+                  Generate a story
                 </MenuLink>
                 <MenuLink href="/profile" onClick={() => setMenuOpen(false)}>
                   Profile

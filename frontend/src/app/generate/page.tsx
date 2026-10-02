@@ -6,9 +6,8 @@ import { RequireAuth } from "@/components/layout/require-auth";
 import { api, ApiError } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { useGenres, useLanguages } from "@/lib/hooks";
-import { SparkIcon } from "@/components/icons";
 import { LogoMark } from "@/components/logo";
-import { AnimatedButton, ProgressBar } from "@/components/ui";
+import { ProgressBar } from "@/components/ui";
 import type { GenerationJob } from "@/lib/types";
 
 const STAGES = [
@@ -164,18 +163,15 @@ function GenerateInner() {
 
   return (
     <div className="container-page max-w-3xl">
-      <div className="relative overflow-hidden rounded-2xl border border-signal/30 bg-ink-900/70 p-6 backdrop-blur sm:p-8">
-        <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-signal/10 blur-3xl" />
-        <p className="eyebrow mb-2 flex items-center gap-2">
-          <LogoMark className="h-4 w-4" /> Story studio
-        </p>
-        <h1 className="font-display text-3xl text-bone-100 sm:text-4xl">
-          Describe a show. <span className="text-tide">Get back a season.</span>
+      <div className="rounded-2xl border border-signal/30 bg-ink-900/80 p-6 sm:p-8">
+        <h1 className="flex items-center gap-3 font-display text-3xl text-bone-100 sm:text-4xl">
+          <LogoMark className="h-7 w-7" /> Story studio
         </h1>
         <p className="mt-3 max-w-xl text-sm text-bone-300">
-          Develop a story bible, outline every episode, draft the full scripts, then
-          synthesizes and packages the audio. Nothing is published automatically. You review the
-          scripts and submit them yourself. It runs whether or not an external model is configured.
+          Describe a show in a sentence or two. The studio writes a story bible, outlines every
+          episode, drafts the scripts, then voices and packages the audio. Nothing is published
+          automatically: you review the scripts and submit them yourself. It works with or without
+          an external language model configured.
         </p>
       </div>
 
@@ -198,7 +194,7 @@ function GenerateInner() {
         </label>
 
         <div>
-          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-bone-400">Need a starting point?</p>
+          <p className="mb-2 text-sm text-bone-400">Need a starting point?</p>
           <div className="flex flex-wrap gap-2">
             {SAMPLE_BRIEFS.map((s) => (
               <button
@@ -264,10 +260,9 @@ function GenerateInner() {
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         <div className="space-y-2">
-          <AnimatedButton disabled={!canSubmit} className="w-full sm:w-auto">
-            <SparkIcon className="h-4 w-4" />
+          <button disabled={!canSubmit} className="btn-tide w-full sm:w-auto">
             {busy ? "Starting your series" : jobRunning ? "A series is being built" : "Generate the series"}
-          </AnimatedButton>
+          </button>
           {jobRunning && (
             <p className="text-xs text-bone-500">
               One series builds at a time. You can start another once this run finishes.

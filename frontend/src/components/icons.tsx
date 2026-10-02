@@ -81,13 +81,6 @@ export const SearchIcon = ({ className = base }: IconProps) => (
   </svg>
 );
 
-export const SparkIcon = ({ className = base }: IconProps) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
-    <path d="M12 2c.5 4.5 3 7 7.5 7.5C15 10 12.5 12.5 12 17c-.5-4.5-3-7-7.5-7.5C9 9 11.5 6.5 12 2Z" />
-    <path d="M19 14c.2 2 1.3 3.1 3 3.3-1.7.2-2.8 1.3-3 3.3-.2-2-1.3-3.1-3-3.3 1.7-.2 2.8-1.3 3-3.3Z" />
-  </svg>
-);
-
 export const WaveIcon = ({ className = base }: IconProps) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
     <rect x="3" y="9" width="2.5" height="6" rx="1" />
