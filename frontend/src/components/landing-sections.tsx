@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { SparkIcon } from "@/components/icons";
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -18,26 +17,39 @@ function useReducedMotion() {
 
 // --- Creator pipeline walkthrough --------------------------------------
 
+// One example brief followed through every stage, so each panel shows the
+// kind of thing that stage produces instead of placeholder bars.
+const EXAMPLE_BRIEF =
+  "A lighthouse keeper starts receiving weather reports for a coast that no longer exists.";
+
 const PIPELINE = [
   {
     label: "Story bible",
-    sample: "Concept, cast, world rules, and a season-long arc, all built out from your one-line brief.",
+    sample: "Concept, cast, world rules and a season arc, built from your one-line brief.",
+    example:
+      "Mara Venn, 61, keeps the light at Skerry Point. The reports name harbours that were drowned in 1953. Rule: every report she receives comes true somewhere, a week later.",
   },
   {
     label: "Episode outlines",
-    sample: "One outline per episode, shaped into three acts across the season with a cliffhanger each.",
+    sample: "One outline per episode, in three acts, each ending on a turn.",
+    example:
+      "Ep 3, act two: Mara radios a coastguard station that closed decades ago, and someone answers using her late husband's call sign.",
   },
   {
     label: "Full scripts",
-    sample: "Every line of narration and dialogue, checked against the bible and the episodes before it.",
+    sample: "Every line of narration and dialogue, checked against the bible and earlier episodes.",
+    example:
+      "MARA: Gale warning, Holm Sound, force nine. There is no Holm Sound. There hasn't been since I was a girl.",
   },
   {
     label: "Voice synthesis",
-    sample: "Give each character a voice and listen to your episodes before publishing.",
+    sample: "Each character gets a voice, and you can listen to whole episodes before publishing.",
+    example: null,
   },
   {
     label: "Your review",
     sample: "Nothing publishes on its own. You read the drafts and decide what goes live, and when.",
+    example: "Episode 3: script approved. Audio ready. Not published.",
   },
 ];
 
@@ -64,11 +76,7 @@ function PipelinePanel({ index }: { index: number }) {
   }
   return (
     <div className="flex h-full flex-col justify-center">
-      <div className="space-y-1.5" aria-hidden>
-        {[92, 78, 96, 61, 84].slice(0, index === 4 ? 3 : 5).map((w, i) => (
-          <div key={i} className="h-2 rounded-full bg-ink-700" style={{ width: `${w}%` }} />
-        ))}
-      </div>
+      <p className="border-l border-ink-600 pl-3 font-display text-bone-100">{PIPELINE[index].example}</p>
       <p className="mt-4 text-sm text-bone-300">{PIPELINE[index].sample}</p>
     </div>
   );
@@ -87,22 +95,18 @@ export function CreatorPipeline() {
 
   return (
     <section
-      className="relative overflow-hidden rounded-2xl border border-signal/25 bg-ink-900/70 p-8 backdrop-blur sm:p-12"
+      className="rounded-2xl border border-signal/25 bg-ink-900/80 p-8 sm:p-12"
       onMouseEnter={() => setHeld(true)}
       onMouseLeave={() => setHeld(false)}
       onFocusCapture={() => setHeld(true)}
       onBlurCapture={() => setHeld(false)}
     >
-      <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-signal/10 blur-3xl" />
-      <div className="relative">
-        <p className="eyebrow mb-3 flex items-center gap-2">
-          <SparkIcon className="h-4 w-4" /> Inside the studio
-        </p>
+      <div>
         <h2 className="font-display text-3xl text-bone-100 sm:text-4xl">
-          One brief moves through five stages
+          What happens to a brief
         </h2>
         <p className="mt-3 max-w-xl text-sm text-bone-300">
-          From the first idea to the final episode. Explore each step.
+          Five stages, shown here for one example: &ldquo;{EXAMPLE_BRIEF}&rdquo;
         </p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
@@ -146,7 +150,7 @@ export function CreatorPipeline() {
           </ol>
 
           <div className="surface min-h-[220px] p-5">
-            <p className="text-xs uppercase tracking-[0.2em] text-bone-400">{PIPELINE[active].label}</p>
+            <p className="text-sm text-bone-400">{PIPELINE[active].label}</p>
             <div className="mt-4 h-[calc(100%-2rem)]">
               <PipelinePanel index={active} />
             </div>
