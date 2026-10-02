@@ -167,13 +167,13 @@ function GenerateInner() {
       <div className="relative overflow-hidden rounded-2xl border border-signal/30 bg-ink-900/70 p-6 backdrop-blur sm:p-8">
         <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-signal/10 blur-3xl" />
         <p className="eyebrow mb-2 flex items-center gap-2">
-          <LogoMark className="h-4 w-4" /> AI story studio
+          <LogoMark className="h-4 w-4" /> Story studio
         </p>
         <h1 className="font-display text-3xl text-bone-100 sm:text-4xl">
           Describe a show. <span className="text-tide">Get back a season.</span>
         </h1>
         <p className="mt-3 max-w-xl text-sm text-bone-300">
-          The pipeline writes a story bible, outlines every episode, drafts the full scripts, then
+          Develop a story bible, outline every episode, draft the full scripts, then
           synthesizes and packages the audio. Nothing is published automatically. You review the
           scripts and submit them yourself. It runs whether or not an external model is configured.
         </p>
@@ -191,7 +191,7 @@ function GenerateInner() {
           />
           <span className="mt-1 flex justify-between text-xs text-bone-500">
             <span className={briefTooShort ? "text-red-400" : ""}>
-              {briefTooShort ? "Give the pipeline at least 10 characters to work with." : " "}
+              {briefTooShort ? "Describe your idea in at least 10 characters." : " "}
             </span>
             <span>{brief.length}/2000</span>
           </span>
@@ -256,7 +256,7 @@ function GenerateInner() {
 
         {genres && (
           <p className="text-xs text-bone-500">
-            The pipeline picks genres and tags from your brief. Available genres:{" "}
+            Genres and tags are suggested from your brief. Available genres:{" "}
             {genres.map((g) => g.name).join(", ")}.
           </p>
         )}
@@ -266,7 +266,7 @@ function GenerateInner() {
         <div className="space-y-2">
           <AnimatedButton disabled={!canSubmit} className="w-full sm:w-auto">
             <SparkIcon className="h-4 w-4" />
-            {busy ? "Starting the pipeline" : jobRunning ? "A series is being built" : "Generate the series"}
+            {busy ? "Starting your series" : jobRunning ? "A series is being built" : "Generate the series"}
           </AnimatedButton>
           {jobRunning && (
             <p className="text-xs text-bone-500">

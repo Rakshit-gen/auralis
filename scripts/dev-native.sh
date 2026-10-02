@@ -25,7 +25,7 @@ export SERVICE_SHARED_TOKEN="${SERVICE_SHARED_TOKEN:-dev-service-token-012345678
 export JWT_SECRET="${JWT_SECRET:-dev-jwt-secret-0123456789}"
 export JWT_ISSUER=auralis-auth JWT_AUDIENCE=auralis
 export KAFKA_BROKERS="${KAFKA_BROKERS:-localhost:9092}"
-export CORS_ALLOWED_ORIGINS="http://localhost:3000"
+export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3200}"
 export S3_ENDPOINT="${S3_ENDPOINT:-localhost:9000}"
 export S3_ACCESS_KEY="${S3_ACCESS_KEY:-minioadmin}"
 export S3_SECRET_KEY="${S3_SECRET_KEY:-minioadmin}"

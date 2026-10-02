@@ -47,7 +47,7 @@ function ScriptEditorInner({ episodeId }: { episodeId: string }) {
           EP {episode.number}: {episode.title}
         </h1>
         <p className="mt-1 text-sm text-bone-400">
-          {episode.ai_generated ? "AI-generated draft" : "Uploaded episode"} · status{" "}
+          {episode.ai_generated ? "Studio draft" : "Uploaded episode"} · status{" "}
           {episode.status.replace(/_/g, " ")}
         </p>
       </div>

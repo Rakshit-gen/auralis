@@ -94,7 +94,7 @@ function DiscoverInner() {
             Hand-authored
           </Chip>
           <Chip active={aiOnly === true} onClick={() => setAiOnly(true)}>
-            AI series
+            Studio series
           </Chip>
         </div>
       </div>

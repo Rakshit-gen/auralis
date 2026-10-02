@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { coverStyle, formatCount } from "@/lib/format";
 import type { Show } from "@/lib/types";
-import { SparkIcon, WaveIcon } from "@/components/icons";
+import { WaveIcon } from "@/components/icons";
 
 export function ShowCard({ show, reason }: { show: Show; reason?: string }) {
   return (
@@ -12,7 +12,7 @@ export function ShowCard({ show, reason }: { show: Show; reason?: string }) {
       className="group block animate-fade-up focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber"
     >
       <div
-        className="relative aspect-[3/4] overflow-hidden rounded-xl border border-ink-700 shadow-lift transition duration-200 group-hover:-translate-y-1 group-hover:border-ink-600"
+        className="show-art relative aspect-[3/4] overflow-hidden rounded-xl border border-ink-700 shadow-lift transition duration-200 group-hover:-translate-y-1 group-hover:border-ink-600"
         style={coverStyle(show.accent_color || "#d9963f", show.id, show.cover_image_url)}
       >
         <div className="absolute inset-0 bg-grain opacity-[0.06]" />
@@ -25,11 +25,6 @@ export function ShowCard({ show, reason }: { show: Show; reason?: string }) {
         </div>
         <div className="absolute left-2 top-2 flex gap-1.5">
           {show.is_premium && <span className="tag border-amber/60 bg-ink-950/70 text-amber-soft">Premium</span>}
-          {show.ai_generated && (
-            <span className="tag border-signal/50 bg-ink-950/70 text-signal">
-              <SparkIcon className="mr-1 h-3 w-3" /> AI
-            </span>
-          )}
         </div>
         <div className="absolute right-2 top-2 rounded-full bg-ink-950/60 p-1.5 text-amber opacity-0 transition group-hover:opacity-100">
           <WaveIcon className="h-4 w-4" />

@@ -7,7 +7,7 @@ import { useAuth } from "@/stores/auth";
 import { EpisodeRow } from "@/components/episode-row";
 import { ShowCardCompact } from "@/components/show-card";
 import { Spinner, ErrorState } from "@/components/ui";
-import { HeartIcon, PlusIcon, SparkIcon } from "@/components/icons";
+import { HeartIcon, PlusIcon } from "@/components/icons";
 import { coverStyle, formatRuntime } from "@/lib/format";
 
 export default function ShowPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -69,11 +69,6 @@ export default function ShowPage({ params }: { params: Promise<{ slug: string }>
                   </Link>
                 ))}
                 {show.is_premium && <span className="tag border-amber/60 text-amber-soft">Premium</span>}
-                {show.ai_generated && (
-                  <span className="tag border-signal/50 text-signal">
-                    <SparkIcon className="mr-1 h-3 w-3" /> AI series
-                  </span>
-                )}
               </div>
               <h1 className="font-display text-3xl text-bone-100 sm:text-4xl">{show.title}</h1>
               <p className="mt-2 max-w-2xl text-bone-200">{show.synopsis}</p>

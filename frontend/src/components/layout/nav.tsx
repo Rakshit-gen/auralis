@@ -45,7 +45,7 @@ export function Nav() {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-ink-800 bg-ink-950/95 backdrop-blur">
+    <header className="site-nav sticky top-0 z-20 border-b border-ink-800 bg-ink-950/95 backdrop-blur">
       <div className="container-page flex h-16 items-center gap-4">
         <Link href={user ? "/home" : "/"} className="group flex items-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal">
           <Logo markClassName="h-7 w-7 transition-transform duration-500 group-hover:-rotate-6" />
@@ -83,11 +83,11 @@ export function Nav() {
         <Link
           href={user ? "/generate" : "/register"}
           className="btn-tide ml-auto shrink-0 text-sm sm:ml-2"
-          title="Generate a series with the AI pipeline"
+          title="Open the story studio"
         >
           <SparkIcon className="h-4 w-4" />
-          <span className="hidden lg:inline">Generate a series</span>
-          <span className="lg:hidden">Generate</span>
+          <span className="hidden lg:inline">Story studio</span>
+          <span className="lg:hidden">Studio</span>
         </Link>
 
         {user ? (

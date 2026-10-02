@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/stores/auth";
 import { useShows, useTrending } from "@/lib/hooks";
 import { coverStyle, formatCount } from "@/lib/format";
+import { SoundPortal } from "@/components/sound-portal";
 import { LogoMark } from "@/components/logo";
 import { SparkIcon } from "@/components/icons";
 import { CreatorPipeline } from "@/components/landing-sections";
@@ -45,8 +46,8 @@ export default function Landing() {
   }, [ready, user, router]);
 
   return (
-    <div className="container-page space-y-20 pb-12 pt-2 sm:space-y-24 lg:pb-16 lg:pt-4">
-      <section className="relative grid items-start gap-12 pb-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-10 lg:pb-20 lg:pt-6">
+    <div className="landing-page container-page space-y-20 pb-12 pt-2 sm:space-y-24 lg:pb-16 lg:pt-4">
+      <section className="landing-hero relative grid items-center gap-10 pb-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12 lg:pb-12 lg:pt-6">
         {/* A cool glow low-left and a warm one behind the headline, so the
             bioluminescent backdrop reads as depth rather than noise. */}
         <div
@@ -59,12 +60,11 @@ export default function Landing() {
         />
 
         <div className="relative animate-fade-up">
-          <p className="eyebrow mb-5">Serial audio fiction</p>
           <h1 className="font-display text-5xl leading-[1.02] tracking-tight text-bone-100 sm:text-6xl lg:text-[4.5rem]">
-            Stories that keep going after the headphones come off.
+            Every story opens<br />a <em className="hero-emphasis">new world.</em>
           </h1>
           <p className="mt-7 max-w-md text-lg text-bone-200">
-            Follow a show. It remembers the exact second you stopped, on every device you own.
+            Original audio fiction, one unforgettable episode at a time. Find your next obsession. Pick up exactly where you left off.
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
             <Link href="/register" className="btn-primary">
@@ -111,9 +111,11 @@ export default function Landing() {
         </div>
 
         <aside
-          className="relative animate-fade-up rounded-2xl border border-white/10 bg-ink-950/60 p-5 backdrop-blur-md lg:sticky lg:top-24"
+          className="hero-listening relative animate-fade-up"
           style={{ animationDelay: "120ms" }}
         >
+          <SoundPortal />
+          <div className="trending-panel">
           <div className="flex items-baseline justify-between">
             <p className="font-display text-xl text-bone-100">Trending tonight</p>
             <Link href="/trending" className="text-xs text-signal-soft hover:text-signal">
@@ -125,7 +127,7 @@ export default function Landing() {
           </p>
           <ol className="mt-4">
             {trendingWarming
-              ? Array.from({ length: 6 }).map((_, i) => (
+              ? Array.from({ length: 3 }).map((_, i) => (
                   <li
                     key={i}
                     className="flex items-center gap-3 border-t border-white/5 py-3 first:border-t-0"
@@ -139,7 +141,7 @@ export default function Landing() {
                     </div>
                   </li>
                 ))
-              : (trending ?? []).slice(0, 6).map((t, i) => (
+              : (trending ?? []).slice(0, 3).map((t, i) => (
                   <li key={t.show_id} className="border-t border-white/5 first:border-t-0">
                     <Link
                       href={`/shows/${t.slug}`}
@@ -168,9 +170,11 @@ export default function Landing() {
           {!trendingWarming && !trending?.length && (
             <p className="py-8 text-center text-sm text-bone-400">The catalog is warming up.</p>
           )}
+          </div>
         </aside>
       </section>
 
+      <div className="listening-divider"><span>PUT THE WORLD ON PAUSE</span><span>PRESS PLAY ON SOMETHING NEW</span></div>
       <PlayAMinute />
 
       {/* The AI studio: the loudest thing on the page after the headline. */}
@@ -182,11 +186,11 @@ export default function Landing() {
               <LogoMark className="h-4 w-4" /> Build it yourself
             </p>
             <h2 className="font-display text-3xl text-bone-100 sm:text-4xl">
-              Give it <span className="text-tide">one sentence</span>. Get back a whole season.
+              Your next series starts with <span className="text-tide">an idea.</span>
             </h2>
             <p className="mt-4 max-w-md text-bone-300">
-              The pipeline drafts every script and voices the audio. You review it and decide what
-              gets published.
+              Develop your characters, shape the episodes, and hear your story come to life.
+              Review every draft before publishing.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/register" className="btn-tide">

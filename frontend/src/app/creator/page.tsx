@@ -41,7 +41,7 @@ function CreatorInner() {
       ) : !shows?.length ? (
         <EmptyState
           title="No shows yet"
-          hint="Generate an AI series to get a full show with draft episodes, or an admin can grant you upload access."
+          hint="Start a series in the story studio, or ask an admin for audio upload access."
           action={
             <Link href="/generate" className="btn-primary">
               Generate your first series

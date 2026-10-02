@@ -33,7 +33,7 @@ const PIPELINE = [
   },
   {
     label: "Voice synthesis",
-    sample: "A distinct neural voice per character, rendered offline, then packaged as streaming audio.",
+    sample: "Give each character a voice and listen to your episodes before publishing.",
   },
   {
     label: "Your review",
@@ -102,7 +102,7 @@ export function CreatorPipeline() {
           One brief moves through five stages
         </h2>
         <p className="mt-3 max-w-xl text-sm text-bone-300">
-          The same pipeline that runs on the generate page. Tap a stage to hold it.
+          From the first idea to the final episode. Explore each step.
         </p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
@@ -155,7 +155,7 @@ export function CreatorPipeline() {
 
         <div className="mt-8">
           <Link href="/discover?ai=true" className="btn-ghost text-sm">
-            Hear finished AI series
+            Explore published series
           </Link>
         </div>
       </div>
