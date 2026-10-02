@@ -73,7 +73,6 @@ function ProfileInner() {
   return (
     <div className="container-page max-w-3xl space-y-8">
       <div>
-        <p className="eyebrow mb-1">Account</p>
         <h1 className="font-display text-3xl text-bone-100">Profile</h1>
       </div>
 
@@ -129,7 +128,7 @@ function ProfileInner() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="surface p-4">
-      <p className="text-xs uppercase tracking-wide text-bone-500">{label}</p>
+      <p className="text-xs text-bone-400">{label}</p>
       <p className="mt-1 font-display text-xl text-bone-100">{value}</p>
     </div>
   );

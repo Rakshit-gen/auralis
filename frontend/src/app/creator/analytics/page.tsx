@@ -52,7 +52,7 @@ function ShowAnalyticsCard({ showId, title }: { showId: string; title: string })
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-bone-500">{label}</dt>
+      <dt className="text-xs text-bone-400">{label}</dt>
       <dd className="font-display text-xl text-bone-100">{value}</dd>
     </div>
   );
@@ -64,7 +64,6 @@ function CreatorAnalyticsInner() {
   return (
     <div className="container-page space-y-6">
       <div>
-        <p className="eyebrow mb-1">Creator</p>
         <h1 className="font-display text-3xl text-bone-100">Analytics</h1>
         <p className="mt-2 text-sm text-bone-300">
           Per-show performance from the analytics aggregates. Numbers update within a minute of a

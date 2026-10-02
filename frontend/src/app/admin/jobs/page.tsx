@@ -50,7 +50,7 @@ export default function JobsPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
-              <tr className="border-b border-ink-700 text-left text-xs uppercase tracking-wide text-bone-500">
+              <tr className="border-b border-ink-700 text-left text-xs text-bone-400">
                 <th className="py-2 pr-3">Kind</th>
                 <th className="py-2 pr-3">Status</th>
                 <th className="py-2 pr-3">Progress</th>

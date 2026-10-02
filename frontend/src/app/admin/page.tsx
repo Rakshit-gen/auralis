@@ -89,7 +89,7 @@ export default function AdminOverviewPage() {
 function Card({ label, value }: { label: string; value: string }) {
   return (
     <div className="surface p-4">
-      <p className="text-xs uppercase tracking-wide text-bone-500">{label}</p>
+      <p className="text-xs text-bone-400">{label}</p>
       <p className="mt-1 font-display text-2xl text-bone-100">{value}</p>
     </div>
   );
