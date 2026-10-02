@@ -7,8 +7,6 @@ import { useAuth } from "@/stores/auth";
 import { useShows, useTrending } from "@/lib/hooks";
 import { coverStyle, formatCount } from "@/lib/format";
 import { SoundPortal } from "@/components/sound-portal";
-import { LogoMark } from "@/components/logo";
-import { SparkIcon } from "@/components/icons";
 import { CreatorPipeline } from "@/components/landing-sections";
 import { PlayAMinute } from "@/components/play-a-minute";
 import { Skeleton } from "@/components/ui";
@@ -32,7 +30,7 @@ export default function Landing() {
     return (catalog?.shows ?? []).filter((s) => !onTrending.has(s.slug));
   }, [catalog, trending]);
   // Three of them, shuffled once when the pool first arrives and then left
-  // alone — `trending`/`catalog` hand back fresh array identities on every
+  // alone. `trending`/`catalog` hand back fresh array identities on every
   // render, so re-picking on each `pool` change would reshuffle forever.
   const [picks, setPicks] = useState<Show[]>([]);
   useEffect(() => {
@@ -48,46 +46,32 @@ export default function Landing() {
   return (
     <div className="landing-page container-page space-y-20 pb-12 pt-2 sm:space-y-24 lg:pb-16 lg:pt-4">
       <section className="landing-hero relative grid items-center gap-10 pb-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12 lg:pb-12 lg:pt-6">
-        {/* A cool glow low-left and a warm one behind the headline, so the
-            bioluminescent backdrop reads as depth rather than noise. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -left-32 -top-24 h-80 w-80 rounded-full bg-signal/10 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute right-0 top-40 h-72 w-72 rounded-full bg-amber/[0.07] blur-3xl"
-        />
-
-        <div className="relative animate-fade-up">
-          <h1 className="font-display text-5xl leading-[1.02] tracking-tight text-bone-100 sm:text-6xl lg:text-[4.5rem]">
-            Every story opens<br />a <em className="hero-emphasis">new world.</em>
+        <div className="relative">
+          <h1 className="font-display text-bone-100">
+            Audio fiction that remembers exactly where you stopped.
           </h1>
           <p className="mt-7 max-w-md text-lg text-bone-200">
-            Original audio fiction, one unforgettable episode at a time. Find your next obsession. Pick up exactly where you left off.
+            Original serialized shows, released episode by episode. Stop mid-scene on your phone and
+            pick up at the same second on your laptop.
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
             <Link href="/register" className="btn-primary">
-              Start listening &mdash; free
+              Create a free account
             </Link>
             <Link href="/discover" className="btn-ghost">
               Browse the catalog
             </Link>
           </div>
 
-          <div
-            className="mt-12 animate-fade-up"
-            style={{ animationDelay: "80ms" }}
-            hidden={!!catalog && pool.length === 0}
-          >
-            <p className="text-sm text-bone-400">You&rsquo;ll love</p>
+          <div className="mt-12" hidden={!!catalog && pool.length === 0}>
+            <p className="text-sm text-bone-400">Three to start with</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               {picks.length
                 ? picks.map((s) => (
                     <Link
                       key={s.id}
                       href={`/shows/${s.slug}`}
-                      className="rounded-xl border border-signal/15 bg-ink-950/50 p-3 shadow-[0_0_28px_-12px_rgba(84,208,204,0.4)] backdrop-blur transition hover:border-signal/40 hover:-translate-y-0.5"
+                      className="rounded-xl border border-ink-700 bg-ink-950/60 p-3 transition-colors hover:border-signal/40"
                     >
                       <div
                         className="mb-3 h-20 rounded-lg"
@@ -110,21 +94,16 @@ export default function Landing() {
           </div>
         </div>
 
-        <aside
-          className="hero-listening relative animate-fade-up"
-          style={{ animationDelay: "120ms" }}
-        >
+        <aside className="hero-listening relative">
           <SoundPortal />
           <div className="trending-panel">
           <div className="flex items-baseline justify-between">
-            <p className="font-display text-xl text-bone-100">Trending tonight</p>
+            <p className="font-display text-xl text-bone-100">Trending</p>
             <Link href="/trending" className="text-xs text-signal-soft hover:text-signal">
               All
             </Link>
           </div>
-          <p className="mt-0.5 text-[11px] uppercase tracking-[0.15em] text-bone-500">
-            What listeners are on right now
-          </p>
+          <p className="mt-0.5 text-xs text-bone-400">Ranked by recent plays</p>
           <ol className="mt-4">
             {trendingWarming
               ? Array.from({ length: 3 }).map((_, i) => (
@@ -174,27 +153,23 @@ export default function Landing() {
         </aside>
       </section>
 
-      <div className="listening-divider"><span>PUT THE WORLD ON PAUSE</span><span>PRESS PLAY ON SOMETHING NEW</span></div>
       <PlayAMinute />
 
-      {/* The AI studio: the loudest thing on the page after the headline. */}
-      <section className="relative overflow-hidden rounded-2xl border border-signal/30 bg-ink-900/70 p-8 backdrop-blur animate-tide-in sm:p-12">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-signal/10 blur-3xl" />
-        <div className="relative grid gap-8 lg:grid-cols-[1fr_0.85fr] lg:items-center">
+      {/* The story studio. Signal-teal border marks it as the AI part of the app. */}
+      <section className="rounded-2xl border border-signal/30 bg-ink-900/80 p-8 sm:p-12">
+        <div className="grid gap-8 lg:grid-cols-[1fr_0.85fr] lg:items-center">
           <div>
-            <p className="eyebrow mb-3 flex items-center gap-2">
-              <LogoMark className="h-4 w-4" /> Build it yourself
-            </p>
+            <p className="eyebrow mb-3">The story studio</p>
             <h2 className="font-display text-3xl text-bone-100 sm:text-4xl">
-              Your next series starts with <span className="text-tide">an idea.</span>
+              Turn a one-line idea into a season you can listen to.
             </h2>
             <p className="mt-4 max-w-md text-bone-300">
-              Develop your characters, shape the episodes, and hear your story come to life.
-              Review every draft before publishing.
+              The studio writes a story bible, outlines every episode, drafts the scripts and voices
+              each character. Nothing goes live until you have read it and published it yourself.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/register" className="btn-tide">
-                <SparkIcon className="h-4 w-4" /> Start with a free account
+                Create an account to try it
               </Link>
               <Link href="/discover" className="btn-quiet text-signal-soft">
                 Hear what people have made
@@ -202,7 +177,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="surface space-y-2 p-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-bone-400">Try a brief</p>
+            <p className="text-sm text-bone-400">Example briefs</p>
             {BRIEF_SAMPLES.map((s) => (
               <Link
                 key={s}
@@ -218,20 +193,26 @@ export default function Landing() {
 
       <CreatorPipeline />
 
-      <section>
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="border-t border-ink-800 pt-8">
+        <h2 className="font-display text-xl text-bone-100">Also in Auralis</h2>
+        <ul className="mt-4 divide-y divide-ink-800">
           {[
-            ["Discover", "Filter by genre, language, and mood.", "/discover"],
-            ["Continue Listening", "Every unfinished episode, in one shelf.", "/library"],
-            ["Premium", "Unlock premium series with a promo code.", "/premium"],
-            ["Creator tools", "Build shows, upload audio, watch analytics.", "/register"],
+            ["Discover", "Filter the catalog by genre, language and mood.", "/discover"],
+            ["Continue listening", "Every unfinished episode on one shelf.", "/library"],
+            ["Premium", "Premium series, unlocked with a promo code.", "/premium"],
+            ["Creator tools", "Build shows, upload your own audio, see per-episode analytics.", "/register"],
           ].map(([title, copy, href]) => (
-            <Link key={title} href={href} className="surface-interactive p-5">
-              <p className="font-display text-lg text-bone-100">{title}</p>
-              <p className="mt-1 text-sm text-bone-300">{copy}</p>
-            </Link>
+            <li key={title}>
+              <Link
+                href={href}
+                className="group flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:gap-6"
+              >
+                <span className="text-bone-100 group-hover:text-amber-soft sm:w-48">{title}</span>
+                <span className="text-sm text-bone-400">{copy}</span>
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
     </div>
   );
