@@ -58,12 +58,11 @@ body {
     @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
   }
   .surface {
-    @apply rounded-xl border border-ink-700 bg-ink-900/95 backdrop-blur;
+    @apply rounded-xl border border-ink-700 bg-ink-900/95;
   }
-  /* A surface that lifts slightly on hover. No glow: the border warms and the
-     card rises a hair, nothing more. */
+  /* Hover only changes the border; nothing moves. */
   .surface-interactive {
-    @apply surface transition duration-200 hover:-translate-y-0.5 hover:border-signal/40;
+    @apply surface transition-colors duration-200 hover:border-signal/40;
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal disabled:opacity-50 disabled:pointer-events-none;
@@ -77,71 +76,21 @@ body {
   .btn-quiet {
     @apply btn text-bone-300 hover:text-bone-100 hover:bg-ink-800;
   }
-  /* The call to action for the AI pipeline. btn-primary is a solid amber fill;
-     this is its cool inverse, a solid signal fill, with a band of light that
-     travels across it on a loop like a swell passing under the surface. */
+  /* Signal is reserved for the story studio, so its button is the one solid
+     teal fill in the app. */
   .btn-tide {
-    @apply btn relative overflow-hidden bg-signal text-ink-950 hover:bg-signal-soft active:translate-y-px;
-  }
-  .btn-tide > * {
-    position: relative;
-    z-index: 1;
-  }
-  .btn-tide::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      100deg,
-      transparent 28%,
-      rgba(255, 255, 255, 0.35) 40%,
-      rgba(255, 255, 255, 0.95) 50%,
-      rgba(255, 255, 255, 0.35) 60%,
-      transparent 72%
-    );
-    background-size: 200% 100%;
-    background-position: 180% 0;
-    animation: tide-sweep 2.6s ease-in-out infinite;
-  }
-  .btn-tide:hover::before {
-    animation-duration: 1.6s;
-  }
-  /* A quieter, outlined button whose label and border each catch a passing
-     band of light on a loop. VengeanceUI's animated-button adapted to the
-     palette (signal accent) and rebuilt on CSS so it needs no motion library. */
-  .btn-shine {
-    @apply btn relative overflow-hidden border border-ink-700 bg-ink-900 text-bone-100 hover:border-signal/50 hover:scale-[1.02] active:scale-[0.98];
-  }
-  .btn-shine > span {
-    @apply relative z-[1] inline-flex items-center gap-2;
-    -webkit-mask-image: linear-gradient(-75deg, #fff 30%, rgba(255, 255, 255, 0.4) 50%, #fff 70%);
-    mask-image: linear-gradient(-75deg, #fff 30%, rgba(255, 255, 255, 0.4) 50%, #fff 70%);
-    -webkit-mask-size: 250% 100%;
-    mask-size: 250% 100%;
-    animation: shine-text 2s linear infinite;
-  }
-  .btn-shine::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(-75deg, transparent 35%, rgba(84, 208, 204, 0.85) 50%, transparent 65%);
-    background-size: 250% 100%;
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    animation: shine-border 2s linear infinite;
+    @apply btn bg-signal text-ink-950 hover:bg-signal-soft active:translate-y-px;
   }
   .field {
-    @apply w-full rounded-lg border border-ink-600 bg-ink-950 px-3 py-2 text-sm text-bone-100 placeholder:text-ink-500 focus:border-signal focus:outline-none;
+    @apply w-full rounded-lg border border-ink-600 bg-ink-950 px-3 py-2 text-sm text-bone-100 placeholder:text-ink-500 transition-colors focus:border-signal focus:outline-none focus:ring-[3px] focus:ring-signal/10;
   }
   .tag {
     @apply inline-flex items-center rounded-full border border-ink-600 px-2.5 py-0.5 text-xs text-bone-300;
   }
+  /* A short context line above a heading, only where it says something the
+     heading doesn't. Sentence case, body face. */
   .eyebrow {
-    @apply text-xs font-semibold uppercase tracking-[0.2em] text-signal;
+    @apply text-sm text-bone-400;
   }
 }
 
@@ -202,18 +151,6 @@ select {
   box-shadow: 0 0 0 3px rgba(84, 208, 204, 0.6);
 }
 
-@layer utilities {
-  /* Shimmering text used sparingly on the AI headline. */
-  .text-tide {
-    background-image: linear-gradient(100deg, #9bece8 0%, #54d0cc 30%, #f0c37e 55%, #54d0cc 80%, #9bece8 100%);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: shimmer 6s linear infinite;
-  }
-}
-
 /* Left-to-right fill for the landing pipeline's per-stage timer bar. */
 @keyframes landing-fill {
   from {
@@ -222,47 +159,6 @@ select {
   to {
     transform: translateX(0);
   }
-}
-
-@keyframes tide-sweep {
-  0% {
-    background-position: 160% 0;
-  }
-  70%,
-  100% {
-    background-position: -100% 0;
-  }
-}
-
-@keyframes shine-text {
-  from {
-    -webkit-mask-position: 150% 0;
-    mask-position: 150% 0;
-  }
-  to {
-    -webkit-mask-position: -150% 0;
-    mask-position: -150% 0;
-  }
-}
-
-@keyframes shine-border {
-  from {
-    background-position: 150% 0;
-  }
-  to {
-    background-position: -150% 0;
-  }
-}
-
-.grain-overlay::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image: var(--tw-bg-grain, none);
-  opacity: 0.04;
-  z-index: 1;
-  mix-blend-mode: overlay;
 }
 
 /* Respect people who ask their system for less motion: the wave canvas checks
@@ -275,51 +171,32 @@ select {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .text-tide {
-    animation: none;
-  }
-  /* The moving light is decorative; leave a plain outlined button. */
-  .btn-shine > span {
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
-  .btn-shine::before {
-    display: none;
-  }
 }
 
-/* Auralis soundscape: common materials across listening and creator pages. */
+/* Auralis soundscape: shared materials. Surfaces and buttons are flat fills;
+   the depth comes from the wave canvas behind them, not from per-card glows. */
 body { isolation: isolate; }
 .soundscape-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+/* The nav and player dock are the two places content scrolls underneath, so
+   they are the only blurred surfaces. */
 .site-nav { background: rgba(6, 14, 19, .84); border-color: rgba(154, 206, 195, .12); backdrop-filter: blur(24px); }
 .site-nav > .container-page { height: 76px; }
-.surface { background: linear-gradient(145deg, rgba(21, 37, 44, .91), rgba(8, 17, 25, .94)); border-color: rgba(149, 196, 187, .17); box-shadow: inset 0 1px 0 rgba(231, 244, 228, .025), 0 16px 48px -30px #000; }
-.surface-interactive:hover { border-color: rgba(128, 222, 204, .44); box-shadow: 0 14px 35px -20px rgba(71, 175, 162, .24); }
-.field { background-color: rgba(4, 12, 18, .78); border-color: rgba(148, 186, 181, .22); transition: border-color .2s, box-shadow .2s; }
-.field:focus { box-shadow: 0 0 0 3px rgba(84, 208, 204, .08); }
-.btn-primary { background: linear-gradient(115deg, #ecc28b, #dba65e); box-shadow: 0 4px 20px -8px rgba(229, 177, 106, .45), inset 0 1px 0 #ffe3b5; }
+.surface { background: rgba(13, 26, 34, .94); border-color: rgba(149, 196, 187, .17); }
+.surface-interactive:hover { border-color: rgba(128, 222, 204, .44); }
+.field { background-color: rgba(4, 12, 18, .78); border-color: rgba(148, 186, 181, .22); }
 .btn-ghost { background: rgba(13, 27, 34, .6); }
-.btn-tide { background: linear-gradient(110deg, #afe6d8, #70c8bf); }
-.btn-tide::before { animation-duration: 6s; opacity: .35; }
 .tag { background-color: rgba(7, 18, 24, .6); }
-.player-dock { border-color: rgba(153, 220, 202, .25); background: linear-gradient(130deg, rgba(19, 37, 43, .97), rgba(6, 15, 23, .97)); box-shadow: 0 18px 70px #0009, inset 0 1px 0 #c5eedd12; }
+.player-dock { border-color: rgba(153, 220, 202, .25); background: rgba(10, 22, 30, .97); box-shadow: 0 18px 70px #0009; }
 .show-art { box-shadow: 0 18px 38px -15px #000b; }
-.show-art::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; box-shadow: inset 0 0 0 1px #ffffff08; background: linear-gradient(135deg, #ffffff0a, transparent 45%); }
-.landing-hero { min-height: 640px; }
-.landing-hero h1 { font-size: clamp(3.3rem, 5.8vw, 5.5rem); line-height: 1.06; font-weight: 400; letter-spacing: -.055em; }
-.hero-emphasis { color: #a9ded0; font-weight: 400; }
-.landing-hero .eyebrow { display: flex; align-items: center; gap: 10px; font-size: 10px; letter-spacing: .23em; color: #c3cabd; }
-.eyebrow-dot { width: 5px; height: 5px; border-radius: 50%; background: #a5d7c8; box-shadow: 0 0 12px #8bd8c6; }
+.show-art::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; box-shadow: inset 0 0 0 1px #ffffff08; }
+.landing-hero { min-height: 600px; }
+.landing-hero h1 { font-size: clamp(2.6rem, 4.6vw, 4.25rem); line-height: 1.06; font-weight: 400; letter-spacing: -.035em; }
 .landing-hero .btn-primary, .landing-hero .btn-ghost { min-height: 46px; padding-inline: 22px; }
 .sound-portal { position: relative; margin: -40px -32px -5px; }
 .sound-portal-art { width: 100%; height: auto; overflow: visible; }
 .portal-rings { transform-origin: 300px 230px; animation: portal-breathe 16s ease-in-out infinite alternate; }
 .portal-voice { transform-origin: 300px 230px; animation: voice-breathe 6s ease-in-out infinite alternate; }
-.portal-caption { position: absolute; bottom: 12%; left: 0; right: 0; text-align: center; font-size: 9px; text-transform: uppercase; letter-spacing: .28em; color: #9db5b0; }
-.trending-panel { position: relative; padding: 22px 24px 12px; border: 1px solid #a6cab524; border-radius: 18px; background: linear-gradient(120deg, #12232ce8, #09151be8); backdrop-filter: blur(18px); box-shadow: 0 20px 65px -32px #000; }
-.trending-panel::before { content: ""; position: absolute; top: -1px; left: 18%; right: 18%; height: 1px; background: linear-gradient(90deg, transparent, #9ed6c8, transparent); opacity: .65; }
-.listening-divider { display: flex; align-items: center; justify-content: space-between; gap: 24px; color: #95aaa5; font-size: 9px; letter-spacing: .2em; border-top: 1px solid #b6d6c51c; padding-top: 24px; }
-.landing-page > .listening-divider { margin-top: 0; }
+.trending-panel { padding: 22px 24px 12px; border: 1px solid rgba(149, 196, 187, .17); border-radius: 14px; background: rgba(13, 26, 34, .94); }
 @keyframes portal-breathe { from { transform: rotate(-7deg) scale(.96); } to { transform: rotate(9deg) scale(1.025); } }
 @keyframes voice-breathe { from { transform: scaleY(.7); opacity: .65; } to { transform: scaleY(1.15); opacity: 1; } }
 @media (max-width: 1023px) {
@@ -332,6 +209,4 @@ body { isolation: isolate; }
   .site-nav .btn { padding-inline: 10px; }
   .hero-listening { display: block; }
   .sound-portal { max-width: 420px; margin: -25px auto -5px; }
-  .landing-hero h1 { font-size: clamp(3.1rem, 12vw, 4rem); }
-  .listening-divider { font-size: 8px; letter-spacing: .12em; }
 }
