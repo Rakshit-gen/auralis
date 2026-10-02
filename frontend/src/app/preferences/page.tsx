@@ -62,7 +62,6 @@ function PreferencesInner() {
   return (
     <div className="container-page max-w-3xl space-y-8">
       <div>
-        <p className="eyebrow mb-1">Personalization</p>
         <h1 className="font-display text-3xl text-bone-100">Preferences</h1>
         <p className="mt-2 text-sm text-bone-300">
           These seed your recommendations before you have much listening history.

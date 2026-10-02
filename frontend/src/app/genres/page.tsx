@@ -9,7 +9,6 @@ export default function GenresPage() {
 
   return (
     <div className="container-page">
-      <p className="eyebrow mb-1">Browse by</p>
       <h1 className="mb-6 font-display text-3xl text-bone-100">Genres</h1>
 
       {isLoading ? (

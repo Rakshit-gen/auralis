@@ -56,7 +56,6 @@ function DiscoverInner() {
 
   return (
     <div className="container-page">
-      <p className="eyebrow mb-1">Catalog</p>
       <h1 className="mb-6 font-display text-3xl text-bone-100">Discover</h1>
 
       <div className="mb-4 flex flex-wrap gap-2">

@@ -12,7 +12,6 @@ export default function GenrePage({ params }: { params: Promise<{ slug: string }
 
   return (
     <div className="container-page">
-      <p className="eyebrow mb-1">Genre</p>
       <h1 className="font-display text-3xl text-bone-100">{genre?.name ?? slug}</h1>
       {genre?.description && <p className="mb-6 mt-2 max-w-xl text-sm text-bone-300">{genre.description}</p>}
       <div className="mt-6">

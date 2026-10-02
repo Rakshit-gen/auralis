@@ -4,7 +4,6 @@ import Link from "next/link";
 import { RequireAuth } from "@/components/layout/require-auth";
 import { useMyShows } from "@/lib/creator";
 import { Spinner, EmptyState } from "@/components/ui";
-import { SparkIcon } from "@/components/icons";
 import { relativeTime } from "@/lib/format";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -23,12 +22,11 @@ function CreatorInner() {
     <div className="container-page space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow mb-1">Creator</p>
           <h1 className="font-display text-3xl text-bone-100">Your shows</h1>
         </div>
         <div className="flex gap-2">
           <Link href="/generate" className="btn-ghost">
-            <SparkIcon className="h-4 w-4 text-signal" /> Generate a series
+            Generate a series
           </Link>
           <Link href="/creator/analytics" className="btn-quiet">
             Analytics

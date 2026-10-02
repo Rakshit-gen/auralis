@@ -35,7 +35,6 @@ function PremiumInner() {
   return (
     <div className="container-page max-w-4xl space-y-10">
       <div>
-        <p className="eyebrow mb-1">Auralis Premium</p>
         <h1 className="font-display text-3xl text-bone-100">
           {active ? "You have Premium" : "Unlock every premium series"}
         </h1>

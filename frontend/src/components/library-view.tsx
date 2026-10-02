@@ -54,7 +54,6 @@ export function LibraryView({ initial }: { initial: Tab }) {
 
   return (
     <div className="container-page">
-      <p className="eyebrow mb-1">Your listening</p>
       <h1 className="mb-6 font-display text-3xl text-bone-100">Library</h1>
 
       <div className="mb-6 flex gap-1 overflow-x-auto border-b border-ink-800">

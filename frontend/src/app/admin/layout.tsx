@@ -17,7 +17,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <RequireAuth role="ADMIN">
       <div className="container-page">
-        <p className="eyebrow mb-1">Operations</p>
         <h1 className="mb-4 font-display text-3xl text-bone-100">Admin</h1>
         <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-ink-800">
           {TABS.map((t) => {

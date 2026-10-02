@@ -31,8 +31,8 @@ export default function TrendingPage() {
   return (
     <div className="container-page space-y-10">
       <div>
-        <p className="eyebrow mb-1">What listeners are on right now</p>
         <h1 className="font-display text-3xl text-bone-100">Trending</h1>
+        <p className="mt-2 text-sm text-bone-300">Shows ranked by recent plays. Older plays count for less.</p>
       </div>
 
       {warming ? (
