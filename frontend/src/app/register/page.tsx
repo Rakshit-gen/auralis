@@ -33,7 +33,7 @@ function RegisterForm() {
 
   return (
     <div className="container-page flex min-h-[70vh] items-center justify-center py-12">
-      <div className="surface w-full max-w-md p-8 animate-fade-up">
+      <div className="surface w-full max-w-md p-8">
         <div className="mb-6 flex items-center gap-2.5">
           <LogoMark className="h-7 w-7" title="Auralis" />
           <span className="font-display text-xl text-bone-100">Join Auralis</span>

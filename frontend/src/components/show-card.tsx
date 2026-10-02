@@ -9,10 +9,10 @@ export function ShowCard({ show, reason }: { show: Show; reason?: string }) {
   return (
     <Link
       href={`/shows/${show.slug}`}
-      className="group block animate-fade-up focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber"
+      className="group block focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber"
     >
       <div
-        className="show-art relative aspect-[3/4] overflow-hidden rounded-xl border border-ink-700 shadow-lift transition duration-200 group-hover:-translate-y-1 group-hover:border-ink-600"
+        className="show-art relative aspect-[3/4] overflow-hidden rounded-xl border border-ink-700 shadow-lift transition-colors duration-200 group-hover:border-ink-600"
         style={coverStyle(show.accent_color || "#d9963f", show.id, show.cover_image_url)}
       >
         <div className="absolute inset-0 bg-grain opacity-[0.06]" />

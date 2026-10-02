@@ -185,7 +185,7 @@ export function PlayerBar() {
             onClick={() => setExpanded(false)}
             className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm"
           />
-          <div className="relative w-full max-w-[440px] animate-tide-in overflow-hidden rounded-t-2xl border border-white/10 bg-ink-950/95 shadow-lift backdrop-blur-md sm:rounded-2xl">
+          <div className="relative w-full max-w-[440px] animate-tide-in overflow-hidden rounded-t-2xl border border-white/10 bg-ink-950/95 shadow-lift sm:rounded-2xl">
             <div className="space-y-5 p-5">
               <div className="flex items-start gap-3.5">
                 <span
@@ -195,14 +195,14 @@ export function PlayerBar() {
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`/shows/${current.showSlug}`}
-                    className="text-xs uppercase tracking-[0.18em] text-bone-400 hover:text-amber"
+                    className="text-sm text-bone-400 hover:text-amber"
                   >
                     {current.showTitle}
                   </Link>
                   <h2 className="mt-1 font-display text-xl leading-tight text-bone-100">{current.episodeTitle}</h2>
                   <p className="mt-0.5 text-xs text-bone-500">Episode {current.episodeNumber}</p>
                   {authorization?.preview_only && (
-                    <p className="mt-1.5 inline-block rounded-full border border-amber/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-amber">
+                    <p className="mt-1.5 inline-block rounded-full border border-amber/40 px-2 py-0.5 text-xs text-amber">
                       Preview &middot; first {Math.round((authorization.preview_limit_sec || 0) / 60)} min
                     </p>
                   )}

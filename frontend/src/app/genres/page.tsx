@@ -25,7 +25,7 @@ export default function GenresPage() {
               <Link
                 key={g.id}
                 href={`/genres/${g.slug}`}
-                className="group relative overflow-hidden rounded-xl border border-ink-700 p-5 transition hover:-translate-y-0.5"
+                className="group relative overflow-hidden rounded-xl border border-ink-700 p-5 transition-colors hover:border-ink-600"
                 style={{
                   backgroundImage: `linear-gradient(140deg, hsl(${hue} 40% 18%), #12100e 70%)`,
                 }}

@@ -42,7 +42,7 @@ export function AuthGate() {
         className="absolute inset-0 bg-ink-950/80 backdrop-blur-sm"
         onClick={close}
       />
-      <div className="relative w-full max-w-sm rounded-2xl border border-ink-700 bg-ink-900 p-7 shadow-lift animate-fade-up">
+      <div className="relative w-full max-w-sm rounded-2xl border border-ink-700 bg-ink-900 p-7 shadow-lift animate-tide-in">
         <div className="mb-4 flex items-center gap-2.5">
           <LogoMark className="h-7 w-7" title="Auralis" />
           <span id="auth-gate-title" className="font-display text-lg text-bone-100">
