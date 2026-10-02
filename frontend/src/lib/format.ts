@@ -17,7 +17,7 @@ export function formatRuntime(totalSeconds: number): string {
 
 export function formatCount(n: number): string {
   if (n < 1000) return String(n);
-  // 999_999 rounds to 1000k, which should read as 1.0M — switch to the M
+  // 999_999 rounds to 1000k, which should read as 1.0M, so switch to the M
   // scale once the k value would round to four digits.
   if (n < 950_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`;
   return `${(n / 1_000_000).toFixed(1)}M`;
@@ -40,7 +40,7 @@ export function relativeTime(iso: string | null | undefined): string {
 }
 
 /**
- * Deterministic bar heights (0.15–1) for a seed string — a stand-in waveform
+ * Deterministic bar heights (0.15 to 1) for a seed string: a stand-in waveform
  * that stays stable across renders and reloads without shipping peak data.
  */
 export function sampleBars(seed: string, count = 56): number[] {

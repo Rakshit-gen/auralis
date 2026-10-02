@@ -19,13 +19,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Auralis",
-    title: "Auralis — serialized audio fiction",
+    title: "Auralis: serialized audio fiction",
     description,
     url: siteUrl,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Auralis — serialized audio fiction",
+    title: "Auralis: serialized audio fiction",
     description,
   },
 };

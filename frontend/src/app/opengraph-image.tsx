@@ -3,7 +3,7 @@ import { sampleBars } from "@/lib/format";
 
 // The card that unfurls when an Auralis link is shared on X, Slack, iMessage,
 // etc. Next attaches it to both Open Graph and Twitter automatically.
-export const alt = "Auralis — serialized audio fiction that remembers where you stopped";
+export const alt = "Auralis: serialized audio fiction that remembers where you stopped";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
