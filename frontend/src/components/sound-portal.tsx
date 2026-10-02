@@ -30,7 +30,6 @@ export function SoundPortal() {
         <path d="M65 230H175M425 230H535" stroke="#8ccfc4" strokeOpacity=".18" strokeDasharray="2 6" />
         <circle cx="88" cy="230" r="3" fill="#deb77e" /><circle cx="512" cy="230" r="3" fill="#87e5d4" />
       </svg>
-      <span className="portal-caption">A little closer. A world away.</span>
     </div>
   );
 }

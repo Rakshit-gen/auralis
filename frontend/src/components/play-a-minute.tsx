@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui";
 import type { Genre, Show } from "@/lib/types";
 
 /**
- * "Play a minute. Leave. Come back." — a working taste of the product that
+ * "Play a minute. Leave. Come back." A working taste of the product that
  * replaces the old how-it-works accordion and genre strip. Pick a genre, hear
  * the opening minute of a real show, walk away; your spot is kept in
  * localStorage and is still there when the page reloads. That single
@@ -163,7 +163,7 @@ export function PlayAMinute() {
   if (!items.length) {
     return (
       <section>
-        <p className="eyebrow mb-3">Try it</p>
+        <p className="eyebrow mb-3">Try it, no account</p>
         <div className="surface p-5">
           <Skeleton className="h-6 w-64" />
           <Skeleton className="mt-4 h-24 w-full" />
@@ -182,7 +182,7 @@ export function PlayAMinute() {
         Play a minute. Leave. Come back to the second.
       </h2>
       <p className="mt-3 max-w-xl text-sm text-bone-300">
-        The opening minute of a real show. Wander off and reload the page &mdash; your spot is
+        The opening minute of a real show. Wander off and reload the page, and your spot is
         still here.
       </p>
 
@@ -213,7 +213,7 @@ export function PlayAMinute() {
           />
           <div className="min-w-0">
             <p className="truncate font-display text-lg text-bone-100">{item.show.title}</p>
-            <p className="text-xs uppercase tracking-[0.15em] text-bone-500">
+            <p className="text-xs text-bone-400">
               Episode 1 &middot; {item.genre?.name ?? item.slug}
             </p>
             <p className="mt-2 text-sm text-bone-300">{item.scene}</p>
@@ -228,7 +228,7 @@ export function PlayAMinute() {
                 href={`/shows/${item.show.slug}`}
                 className="mt-2 inline-block text-signal-soft hover:text-signal"
               >
-                Open the show &rarr;
+                Open the show
               </Link>
             </div>
           ) : (
@@ -284,11 +284,11 @@ export function PlayAMinute() {
                   <>
                     That&rsquo;s the minute.{" "}
                     <Link href={`/shows/${item.show.slug}`} className="text-signal-soft hover:text-signal">
-                      Hear the rest &rarr;
+                      Hear the rest of the episode
                     </Link>
                   </>
                 ) : saved > 0 ? (
-                  <>Saved at {formatDuration(saved)} &mdash; press play to pick up.</>
+                  <>Saved at {formatDuration(saved)}. Press play to pick up there.</>
                 ) : (
                   " "
                 )}
