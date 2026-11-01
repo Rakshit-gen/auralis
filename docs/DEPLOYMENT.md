@@ -187,8 +187,8 @@ and `SERVICE_SHARED_TOKEN` on `/internal/*`, so a reachable URL is not an open
 door, but for a hardened deployment move them behind a private network on a
 paid plan. The gateway reaches them by their `onrender.com` hostnames set as
 `AUTH_SERVICE_URL`, `USER_SERVICE_URL`, `CONTENT_SERVICE_URL`,
-`PLAYBACK_SERVICE_URL`, `ANALYTICS_SERVICE_URL`, `AI_MEDIA_SERVICE_URL`,
-`RECOMMENDATION_SERVICE_URL`. Playback also needs `CONTENT_SERVICE_URL` and
+`PLAYBACK_SERVICE_URL`, `ANALYTICS_SERVICE_URL`, `NOTIFICATION_SERVICE_URL`,
+`AI_MEDIA_SERVICE_URL`, `RECOMMENDATION_SERVICE_URL`. Playback also needs `CONTENT_SERVICE_URL` and
 `USER_SERVICE_URL`; ai-media needs `CONTENT_SERVICE_URL` (and optionally
 `USER_SERVICE_URL`).
 
