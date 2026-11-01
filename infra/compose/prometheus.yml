@@ -15,6 +15,7 @@ scrape_configs:
           - ai-media:8085
           - recommendation:8086
           - analytics:8087
+          - notification:8088
         labels:
           platform: auralis
 
