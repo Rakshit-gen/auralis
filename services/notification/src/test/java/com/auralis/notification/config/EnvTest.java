@@ -45,4 +45,34 @@ class EnvTest {
         assertThat(Env.databaseUrl("jdbc:postgresql://localhost/x"))
                 .isEqualTo(Map.of("spring.datasource.url", "jdbc:postgresql://localhost/x"));
     }
+
+    @Test
+    void noKafkaSecurityMeansPlaintext() {
+        assertThat(Env.kafkaSecurity(Map.of())).isEmpty();
+    }
+
+    @Test
+    void scramImpliesSaslSsl() {
+        Map<String, String> p = Env.kafkaSecurity(Map.of(
+                "KAFKA_SASL_MECHANISM", "scram-sha-256",
+                "KAFKA_SASL_USERNAME", "svc",
+                "KAFKA_SASL_PASSWORD", "pa\"ss"));
+        assertThat(p).containsEntry("spring.kafka.properties.security.protocol", "SASL_SSL")
+                .containsEntry("spring.kafka.properties.sasl.mechanism", "SCRAM-SHA-256")
+                .containsEntry("spring.kafka.properties.sasl.jaas.config",
+                        "org.apache.kafka.common.security.scram.ScramLoginModule required "
+                                + "username=\"svc\" password=\"pa\\\"ss\";");
+    }
+
+    @Test
+    void tlsWithoutSasl() {
+        assertThat(Env.kafkaSecurity(Map.of("KAFKA_TLS_ENABLED", "true")))
+                .isEqualTo(Map.of("spring.kafka.properties.security.protocol", "SSL"));
+    }
+
+    @Test
+    void mechanismWithoutCredentialsFailsFast() {
+        assertThatThrownBy(() -> Env.kafkaSecurity(Map.of("KAFKA_SASL_MECHANISM", "PLAIN")))
+                .hasMessageContaining("USERNAME/PASSWORD");
+    }
 }
