@@ -81,6 +81,11 @@ The event carries no media keys. Playback consumes it, then calls
 variants into `episode_cache`. Keeping the large, mutable media metadata out of
 the event means a re-package does not need a new publish event.
 
+Notification consumes it too: every follower of `show_id` except `creator_id`
+gets a `new_episode` notification built from `title`, `episode_number` and
+`episode_title`. Re-publishing the same `episode_id` does not notify anyone
+twice.
+
 ### content.episode_unpublished (v1) / content.episode_archived (v1), producer: content
 
 Same publication payload shape. Playback sets the cache row's `published` flag
