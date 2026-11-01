@@ -15,6 +15,17 @@ spring:
     hikari:
       maximum-pool-size: 10
       connection-timeout: 3000
+  # Matches libs/go-platform/kafkax: start from the earliest offset for a new
+  # group, commit after each record, wait for all replicas on DLQ writes.
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+    listener:
+      ack-mode: record
 
 server:
   shutdown: graceful
