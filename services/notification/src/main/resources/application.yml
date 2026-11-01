@@ -1,0 +1,16 @@
+# Configuration comes from the same environment variables the Go services use.
+# NOTIFICATION_HTTP_ADDR and NOTIFICATION_DATABASE_URL are translated in
+# NotificationApplication; everything else is read here.
+spring:
+  application:
+    name: notification
+  main:
+    banner-mode: off
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  shutdown: graceful
+
+IDENTITY_SECRET: ""
