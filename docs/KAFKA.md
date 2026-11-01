@@ -83,6 +83,12 @@ fails is written to `<origin-topic>.dlq` with headers:
 - `dlq_origin_topic`: the original topic
 - (Python also carries the original key and value)
 
+The Java notification service uses spring-kafka's `DefaultErrorHandler` with
+the same backoff and attempt count. Its DLQ records carry spring-kafka's
+`kafka_dlt-original-topic`, `-partition`, `-offset`, `-timestamp` and
+`-consumer-group` headers instead of the `dlq_*` ones. An envelope that fails
+validation skips the retries and is dead-lettered on the first attempt.
+
 The origin offset is then committed so the consumer group keeps moving. DLQ
 topics are not auto-consumed; inspect them with any Kafka console consumer and
 replay by re-producing to the origin topic once the bug is fixed.
@@ -97,6 +103,7 @@ partitions across them:
 | `user-service` | user |
 | `playback-service` | playback |
 | `analytics-service` | analytics |
+| `notification-service` | notification |
 | `recommendation-service-2` | recommendation |
 | `ai-media-service` | ai-media (upload events) |
 
@@ -106,7 +113,10 @@ partitions across them:
   on Kafka 4.x because of the rebalance protocol. This shows up as a delay
   before the first event is processed after startup; it is not a hang.
 - Python consumers using `aiokafka` join in 1 to 2 seconds.
+- The Java consumer joined in about 3 seconds after startup against a local
+  Kafka 4.x broker.
 - `auralis_kafka_consumer_lag_messages` is exported per topic and partition;
-  alert on sustained growth. See [OBSERVABILITY.md](OBSERVABILITY.md).
-- Offsets start at `FirstOffset` for a new group, so a fresh `recommendation`
-  or `analytics` database is populated by replaying history.
+  alert on sustained growth. The Java service exports the Kafka client's own
+  `kafka_consumer_fetch_manager_records_lag_max` instead. See [OBSERVABILITY.md](OBSERVABILITY.md).
+- Offsets start at `FirstOffset` for a new group, so a fresh `recommendation`,
+  `analytics` or `notification` database is populated by replaying history.
