@@ -6,7 +6,7 @@ lives, and how a request flows through the stack.
 
 ## System shape
 
-Eight backend services, one web client, and shared infrastructure (PostgreSQL,
+Nine backend services, one web client, and shared infrastructure (PostgreSQL,
 Redis, Kafka, S3-compatible object storage).
 
 ```
@@ -37,10 +37,10 @@ Redis, Kafka, S3-compatible object storage).
    +----------------------+-----------------------+
                           |
                           v  consumers
-             +------------+------------+
-             | analytics  | user       | recommendation
-             | (Go)       | (Go)       | (Python)
-             +------------+------------+
+             +------------+------------+--------------+
+             | analytics  | user       | notification | recommendation
+             | (Go)       | (Go)       | (Java)       | (Python)
+             +------------+------------+--------------+
 ```
 
 ## Services
