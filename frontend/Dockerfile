@@ -1,7 +1,8 @@
 # Next.js standalone build.
 FROM node:20-slim AS deps
 WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json ./
+# .npmrc carries legacy-peer-deps; without it npm ci rejects the lock file.
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 RUN npm ci --no-audit --no-fund
 
 FROM node:20-slim AS build
