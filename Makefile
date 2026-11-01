@@ -43,6 +43,7 @@ migrate: ## Run database migrations for every service
 	$(COMPOSE) run --rm content /content migrate
 	$(COMPOSE) run --rm playback /playback migrate
 	$(COMPOSE) run --rm analytics /analytics migrate
+	$(COMPOSE) run --rm notification migrate
 	$(COMPOSE) run --rm ai-media migrate
 	$(COMPOSE) run --rm recommendation migrate
 
