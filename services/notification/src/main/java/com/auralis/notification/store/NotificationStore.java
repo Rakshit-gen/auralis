@@ -44,4 +44,24 @@ public class NotificationStore {
                 ON CONFLICT (user_id, kind, episode_id) DO NOTHING
                 """, KIND_NEW_EPISODE, episodeId, title, body, showId, creatorId);
     }
+
+    /**
+     * Newest-first page of a user's inbox. Paging is keyset on
+     * (created_at, id) rather than OFFSET, so a fan-out landing mid-scroll
+     * does not shift rows between pages.
+     */
+    public List<Notification> inbox(UUID userId, int limit, OffsetDateTime beforeAt, UUID beforeId) {
+        if (beforeAt == null) {
+            return db.query("""
+                    SELECT id, kind, show_id, episode_id, title, body, created_at, read_at
+                    FROM notifications WHERE user_id = ?
+                    ORDER BY created_at DESC, id DESC LIMIT ?
+                    """, ROW, userId, limit);
+        }
+        return db.query("""
+                SELECT id, kind, show_id, episode_id, title, body, created_at, read_at
+                FROM notifications WHERE user_id = ? AND (created_at, id) < (?, ?)
+                ORDER BY created_at DESC, id DESC LIMIT ?
+                """, ROW, userId, beforeAt, beforeId, limit);
+    }
 }
