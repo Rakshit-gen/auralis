@@ -55,6 +55,7 @@ Redis, Kafka, S3-compatible object storage).
 | `recommendation` | Python | feed projections (show, signal, affinity tables) | none | content + playback events |
 | `ai-media` | Python | generation jobs, series bibles, plot threads, episode summaries | content, user | `content.generation.requested` |
 | `analytics` | Go | aggregate rollups (daily totals, per-show/episode stats, retention) | none | all domain events |
+| `notification` | Java | follower projection, in-app notifications | none | `user.followed`, `user.unfollowed`, `content.episode_published` |
 
 Each service has its own PostgreSQL database and never reaches into another
 service's tables. See [SERVICE_BOUNDARIES.md](SERVICE_BOUNDARIES.md) and
