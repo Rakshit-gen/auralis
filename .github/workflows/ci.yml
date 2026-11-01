@@ -15,6 +15,7 @@ jobs:
     outputs:
       go: ${{ steps.filter.outputs.go }}
       python: ${{ steps.filter.outputs.python }}
+      java: ${{ steps.filter.outputs.java }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docker: ${{ steps.filter.outputs.docker }}
     steps:
@@ -38,6 +39,9 @@ jobs:
               - 'services/ai_media/**'
               - 'services/recommendation/**'
               - 'scripts/**'
+            java:
+              - '.github/workflows/ci.yml'
+              - 'services/notification/**'
             frontend:
               - '.github/workflows/ci.yml'
               - 'frontend/**'
