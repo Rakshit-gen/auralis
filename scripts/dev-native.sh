@@ -107,7 +107,7 @@ cmd_up() {
     AUTH_SERVICE_URL="http://localhost:8081" USER_SERVICE_URL="http://localhost:8083" \
     CONTENT_SERVICE_URL="http://localhost:8082" PLAYBACK_SERVICE_URL="http://localhost:8084" \
     RECOMMENDATION_SERVICE_URL="http://localhost:8086" AI_MEDIA_SERVICE_URL="http://localhost:8085" \
-    ANALYTICS_SERVICE_URL="http://localhost:8087" \
+    ANALYTICS_SERVICE_URL="http://localhost:8087" NOTIFICATION_SERVICE_URL="http://localhost:8088" \
     start gateway "$RUN/bin/gateway"
 
   wait_http "http://localhost:8080/health"
