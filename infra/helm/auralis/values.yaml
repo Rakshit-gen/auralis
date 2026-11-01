@@ -43,6 +43,7 @@ database:
   content: "postgres://auralis:auralis@postgres:5432/content?sslmode=disable"
   playback: "postgres://auralis:auralis@postgres:5432/playback?sslmode=disable"
   analytics: "postgres://auralis:auralis@postgres:5432/analytics?sslmode=disable"
+  notification: "postgres://auralis:auralis@postgres:5432/notification?sslmode=disable"
   aiMedia: "postgresql://auralis:auralis@postgres:5432/ai_media"
   recommendation: "postgresql://auralis:auralis@postgres:5432/recommendation"
 
