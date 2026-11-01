@@ -45,3 +45,10 @@ management:
       service: notification
 
 IDENTITY_SECRET: ""
+
+# JSON logs on stdout, like the Go services, so the same log pipeline parses
+# them.
+logging:
+  structured:
+    format:
+      console: logstash
