@@ -128,6 +128,8 @@ hits `POST /api/playback/authorize`, `playback` returns presigned URLs
 Go for the request-path services (gateway, auth, user, content, playback,
 analytics) where predictable latency and low memory matter. Python for
 `ai-media` and `recommendation` where the work is model orchestration, media
-tooling, and numerical ranking. Next.js 16 (App Router, React 19) for the web
+tooling, and numerical ranking. Java 21 with Spring Boot for `notification`, a
+consumer with a small CRUD API, where spring-kafka supplies the retry and
+dead-letter handling that the Go and Python services each hand-roll. Next.js 16 (App Router, React 19) for the web
 client. Rationale for the significant decisions is in
 [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md).
