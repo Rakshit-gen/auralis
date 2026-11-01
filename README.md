@@ -7,13 +7,13 @@ watch how they perform. The catalog mixes hand-authored audio with episodes
 produced by an asynchronous AI pipeline that writes scripts, synthesises
 speech, and packages HLS audio for streaming.
 
-This repository holds the whole system: eight backend services, the web
+This repository holds the whole system: nine backend services, the web
 client, infrastructure manifests, and the tooling to run it locally or deploy
 it on free infrastructure.
 
 ## Architecture at a glance
 
-Eight independently deployable services, each owning its own database:
+Nine independently deployable services, each owning its own database:
 
 | Service | Language | Responsibility |
 | --- | --- | --- |
@@ -25,6 +25,7 @@ Eight independently deployable services, each owning its own database:
 | `recommendation` | Python | Personalized feed, similar shows, ranking model, offline evaluation |
 | `ai-media` | Python | AI story generation, TTS, FFmpeg, HLS packaging, processing jobs |
 | `analytics` | Go | Kafka event consumption, aggregate metrics for dashboards |
+| `notification` | Java (Spring Boot) | Follower projection, new-episode notifications, the in-app inbox |
 
 Services talk to each other over REST for synchronous calls and over Apache
 Kafka for asynchronous domain events. Important events are written through an
