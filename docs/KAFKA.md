@@ -34,8 +34,8 @@ or the provider console) before the services start.
 
 | Topic | Producer | Consumers |
 | --- | --- | --- |
-| `auralis.user.events` | auth, user | user, analytics, recommendation |
-| `auralis.content.events` | content | playback, analytics, recommendation |
+| `auralis.user.events` | auth, user | user, analytics, recommendation, notification |
+| `auralis.content.events` | content | playback, analytics, recommendation, notification |
 | `auralis.playback.events` | playback | user, analytics, recommendation |
 | `auralis.ai.events` | reserved | reserved |
 | `auralis.media.events` | reserved | reserved |
