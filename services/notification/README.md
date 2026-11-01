@@ -60,6 +60,7 @@ NOTIFICATION_TEST_DATABASE_URL=postgres://localhost:5432/notification_test?sslmo
 
 - No OpenTelemetry tracing. The Go services export OTLP spans; this one only
   has logs and Prometheus metrics.
-- Logs are Spring's default text format, not the JSON the Go services write.
+- Logs are JSON (logstash layout), but the field names differ from the Go
+  services' slog output, and correlation ids are not yet added to log lines.
 - In-app only. No email or push delivery.
 - No frontend yet. The web client does not show the inbox or an unread badge.
