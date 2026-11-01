@@ -28,8 +28,8 @@ supplies every credential; none are in the repo.
 ## 1. Postgres (Neon)
 
 1. Create a Neon project.
-2. Create seven databases: `auth`, `users`, `content`, `playback`,
-   `analytics`, `ai_media`, `recommendation`. `scripts/deploy/neon-setup.sh`
+2. Create eight databases: `auth`, `users`, `content`, `playback`,
+   `analytics`, `notification`, `ai_media`, `recommendation`. `scripts/deploy/neon-setup.sh`
    does this over `psql` from `NEON_ADMIN_URL` (the direct, non-pooler endpoint);
    it is idempotent.
 3. Note the pooled connection string for each. Each service gets exactly one as
