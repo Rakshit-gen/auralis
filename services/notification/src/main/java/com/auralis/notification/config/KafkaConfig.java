@@ -19,7 +19,7 @@ public class KafkaConfig {
      * dead-lettered on the first failure since retrying cannot fix it.
      */
     @Bean
-    DefaultErrorHandler errorHandler(KafkaTemplate<Object, Object> template) {
+    DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<Object, Object> template) {
         var recoverer = new DeadLetterPublishingRecoverer(template,
                 (record, ex) -> new TopicPartition(record.topic() + ".dlq", -1));
         var backoff = new ExponentialBackOff(500, 2.0);
