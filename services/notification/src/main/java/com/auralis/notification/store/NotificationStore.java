@@ -82,4 +82,9 @@ public class NotificationStore {
                 WHERE id = ? AND user_id = ?
                 """, id, userId) == 1;
     }
+
+    /** Marks every unread notification for userId read and returns how many changed. */
+    public int markAllRead(UUID userId) {
+        return db.update("UPDATE notifications SET read_at = now() WHERE user_id = ? AND read_at IS NULL", userId);
+    }
 }
