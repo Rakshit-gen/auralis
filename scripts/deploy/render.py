@@ -46,7 +46,7 @@ SERVICES: dict[str, dict] = {
         "port": 8080,
         "addr_env": "GATEWAY_HTTP_ADDR",
         "public": True,
-        "deps": ["auth", "user", "content", "playback", "analytics", "ai-media", "recommendation"],
+        "deps": ["auth", "user", "content", "playback", "analytics", "notification", "ai-media", "recommendation"],
         "kafka": False,
         "redis": True,
     },
@@ -84,6 +84,12 @@ SERVICES: dict[str, dict] = {
         "addr_env": "ANALYTICS_HTTP_ADDR",
         "db_env": "ANALYTICS_DATABASE_URL",
     },
+    "auralis-notification": {
+        "dockerfile": "services/notification/Dockerfile",
+        "port": 8088,
+        "addr_env": "NOTIFICATION_HTTP_ADDR",
+        "db_env": "NOTIFICATION_DATABASE_URL",
+    },
     "auralis-ai-media": {
         "dockerfile": "services/ai_media/Dockerfile",
         "port": 8085,
@@ -109,6 +115,7 @@ DEP_ENV = {
     "content": "CONTENT_SERVICE_URL",
     "playback": "PLAYBACK_SERVICE_URL",
     "analytics": "ANALYTICS_SERVICE_URL",
+    "notification": "NOTIFICATION_SERVICE_URL",
     "ai-media": "AI_MEDIA_SERVICE_URL",
     "recommendation": "RECOMMENDATION_SERVICE_URL",
 }
