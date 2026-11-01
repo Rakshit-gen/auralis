@@ -19,6 +19,7 @@ public class NotificationApplication {
         Map<String, Object> defaults = new HashMap<>();
         defaults.putAll(Env.httpAddr(System.getenv().getOrDefault("NOTIFICATION_HTTP_ADDR", ":8088")));
         defaults.putAll(Env.databaseUrl(System.getenv("NOTIFICATION_DATABASE_URL")));
+        defaults.putAll(Env.kafkaSecurity(System.getenv()));
         app.setDefaultProperties(defaults);
         app.run(args);
     }

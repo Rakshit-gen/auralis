@@ -71,4 +71,52 @@ public final class Env {
     private static String decode(String s) {
         return URLDecoder.decode(s, StandardCharsets.UTF_8);
     }
+
+    /**
+     * Kafka transport security from the same variables kafkax/security.go
+     * reads: KAFKA_SASL_MECHANISM (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512),
+     * KAFKA_SASL_USERNAME / _PASSWORD, KAFKA_TLS_ENABLED and
+     * KAFKA_TLS_SKIP_VERIFY. Empty mechanism and no TLS means PLAINTEXT.
+     * Skip-verify only turns off hostname checks here; the Java client has no
+     * one-flag equivalent of Go's InsecureSkipVerify.
+     */
+    public static Map<String, String> kafkaSecurity(Map<String, String> env) {
+        Map<String, String> out = new HashMap<>();
+        String mech = env.getOrDefault("KAFKA_SASL_MECHANISM", "").trim().toUpperCase();
+        boolean tls = !mech.isEmpty() || truthy(env.get("KAFKA_TLS_ENABLED"));
+        if (!mech.isEmpty()) {
+            String user = env.getOrDefault("KAFKA_SASL_USERNAME", "");
+            String pass = env.getOrDefault("KAFKA_SASL_PASSWORD", "");
+            if (user.isEmpty() || pass.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "KAFKA_SASL_MECHANISM is set but KAFKA_SASL_USERNAME/PASSWORD are empty");
+            }
+            String module = switch (mech) {
+                case "PLAIN" -> "org.apache.kafka.common.security.plain.PlainLoginModule";
+                case "SCRAM-SHA-256", "SCRAM-SHA-512" -> "org.apache.kafka.common.security.scram.ScramLoginModule";
+                default -> throw new IllegalArgumentException("unsupported KAFKA_SASL_MECHANISM " + mech);
+            };
+            out.put("spring.kafka.properties.sasl.mechanism", mech);
+            out.put("spring.kafka.properties.sasl.jaas.config", module + " required username=\"" + jaas(user)
+                    + "\" password=\"" + jaas(pass) + "\";");
+        }
+        if (tls) {
+            out.put("spring.kafka.properties.security.protocol", mech.isEmpty() ? "SSL" : "SASL_SSL");
+            if (truthy(env.get("KAFKA_TLS_SKIP_VERIFY"))) {
+                out.put("spring.kafka.properties.ssl.endpoint.identification.algorithm", "");
+            }
+        }
+        return out;
+    }
+
+    private static boolean truthy(String v) {
+        return v != null && switch (v.trim().toLowerCase()) {
+            case "1", "true", "yes", "on" -> true;
+            default -> false;
+        };
+    }
+
+    private static String jaas(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
 }
