@@ -70,4 +70,16 @@ public class NotificationStore {
                 "SELECT count(*) FROM notifications WHERE user_id = ? AND read_at IS NULL", Long.class, userId);
         return n == null ? 0 : n;
     }
+
+    /**
+     * Marks one notification read. Scoped to userId so a caller cannot touch
+     * someone else's row; returns false when no such row exists for them.
+     * Marking an already read row is a no-op that still returns true.
+     */
+    public boolean markRead(UUID userId, UUID id) {
+        return db.update("""
+                UPDATE notifications SET read_at = coalesce(read_at, now())
+                WHERE id = ? AND user_id = ?
+                """, id, userId) == 1;
+    }
 }
