@@ -13,4 +13,18 @@ spring:
 server:
   shutdown: graceful
 
+# Prometheus scrapes /metrics on every service, so the actuator endpoint is
+# mapped there. Nothing else from actuator is exposed.
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: prometheus
+      path-mapping:
+        prometheus: metrics
+  metrics:
+    tags:
+      service: notification
+
 IDENTITY_SECRET: ""
