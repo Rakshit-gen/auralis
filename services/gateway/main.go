@@ -46,6 +46,7 @@ func main() {
 		"recommendation": c.Require("RECOMMENDATION_SERVICE_URL"),
 		"ai-media":       c.Require("AI_MEDIA_SERVICE_URL"),
 		"analytics":      c.Require("ANALYTICS_SERVICE_URL"),
+		"notification":   c.Require("NOTIFICATION_SERVICE_URL"),
 	}
 	if err := c.Err(); err != nil {
 		server.FailFast("invalid configuration", err)
