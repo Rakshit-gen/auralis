@@ -199,6 +199,7 @@ jobs:
           - { name: content, file: services/content/Dockerfile }
           - { name: playback, file: services/playback/Dockerfile }
           - { name: analytics, file: services/analytics/Dockerfile }
+          - { name: notification, file: services/notification/Dockerfile }
           - { name: ai-media, file: services/ai_media/Dockerfile }
           - { name: recommendation, file: services/recommendation/Dockerfile }
           - { name: frontend, file: frontend/Dockerfile }
