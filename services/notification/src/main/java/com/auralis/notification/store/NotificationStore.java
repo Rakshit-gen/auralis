@@ -64,4 +64,10 @@ public class NotificationStore {
                 ORDER BY created_at DESC, id DESC LIMIT ?
                 """, ROW, userId, beforeAt, beforeId, limit);
     }
+
+    public long unreadCount(UUID userId) {
+        Long n = db.queryForObject(
+                "SELECT count(*) FROM notifications WHERE user_id = ? AND read_at IS NULL", Long.class, userId);
+        return n == null ? 0 : n;
+    }
 }
