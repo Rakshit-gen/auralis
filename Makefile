@@ -16,7 +16,7 @@ help: ## Show this help
 # --- local stack ---------------------------------------------------------
 
 .PHONY: up
-up: ## Build and start the whole stack (infra + 8 services + workers + web)
+up: ## Build and start the whole stack (infra + 9 services + workers + web)
 	@test -f .env || cp .env.example .env
 	$(COMPOSE) up -d --build
 
@@ -85,11 +85,15 @@ typecheck: ## Type-check Python and the frontend
 	@cd frontend && npm run typecheck
 
 .PHONY: test
-test: test-go test-py test-web ## Run every test suite
+test: test-go test-java test-py test-web ## Run every test suite
 
 .PHONY: test-go
 test-go: ## Go unit + integration tests (needs local Postgres/Kafka or the compose stack)
 	@for m in $(GO_MODULES); do echo "test $$m"; (cd $$m && go test ./...); done
+
+.PHONY: test-java
+test-java: ## Java tests (set NOTIFICATION_TEST_DATABASE_URL to include the Postgres ones)
+	@cd services/notification && mvn -q -B verify
 
 .PHONY: test-py
 test-py: ## Python tests
