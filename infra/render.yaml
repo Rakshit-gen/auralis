@@ -87,6 +87,8 @@ services:
         value: https://auralis-playback.onrender.com
       - key: ANALYTICS_SERVICE_URL
         value: https://auralis-analytics.onrender.com
+      - key: NOTIFICATION_SERVICE_URL
+        value: https://auralis-notification.onrender.com
       - key: AI_MEDIA_SERVICE_URL
         value: https://auralis-ai-media.onrender.com
       - key: RECOMMENDATION_SERVICE_URL
