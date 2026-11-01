@@ -19,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public record Identity(UUID userId, List<String> roles) {
 
-    public static final String ATTRIBUTE = Identity.class.getName();
+    public static final String ATTRIBUTE = "auralis.identity";
 
     /** Verifies the signed headers. Throws ApiException(401) when they are missing or forged. */
     public static Identity verify(String secret, String user, String roles, String requestId, String sig) {
