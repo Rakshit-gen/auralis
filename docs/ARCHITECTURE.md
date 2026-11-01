@@ -6,7 +6,7 @@ lives, and how a request flows through the stack.
 
 ## System shape
 
-Eight backend services, one web client, and shared infrastructure (PostgreSQL,
+Nine backend services, one web client, and shared infrastructure (PostgreSQL,
 Redis, Kafka, S3-compatible object storage).
 
 ```
@@ -37,10 +37,10 @@ Redis, Kafka, S3-compatible object storage).
    +----------------------+-----------------------+
                           |
                           v  consumers
-             +------------+------------+
-             | analytics  | user       | recommendation
-             | (Go)       | (Go)       | (Python)
-             +------------+------------+
+             +------------+------------+--------------+
+             | analytics  | user       | notification | recommendation
+             | (Go)       | (Go)       | (Java)       | (Python)
+             +------------+------------+--------------+
 ```
 
 ## Services
@@ -55,6 +55,7 @@ Redis, Kafka, S3-compatible object storage).
 | `recommendation` | Python | feed projections (show, signal, affinity tables) | none | content + playback events |
 | `ai-media` | Python | generation jobs, series bibles, plot threads, episode summaries | content, user | `content.generation.requested` |
 | `analytics` | Go | aggregate rollups (daily totals, per-show/episode stats, retention) | none | all domain events |
+| `notification` | Java | follower projection, in-app notifications | none | `user.followed`, `user.unfollowed`, `content.episode_published` |
 
 Each service has its own PostgreSQL database and never reaches into another
 service's tables. See [SERVICE_BOUNDARIES.md](SERVICE_BOUNDARIES.md) and
@@ -127,6 +128,8 @@ hits `POST /api/playback/authorize`, `playback` returns presigned URLs
 Go for the request-path services (gateway, auth, user, content, playback,
 analytics) where predictable latency and low memory matter. Python for
 `ai-media` and `recommendation` where the work is model orchestration, media
-tooling, and numerical ranking. Next.js 16 (App Router, React 19) for the web
+tooling, and numerical ranking. Java 21 with Spring Boot for `notification`, a
+consumer with a small CRUD API, where spring-kafka supplies the retry and
+dead-letter handling that the Go and Python services each hand-roll. Next.js 16 (App Router, React 19) for the web
 client. Rationale for the significant decisions is in
 [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md).

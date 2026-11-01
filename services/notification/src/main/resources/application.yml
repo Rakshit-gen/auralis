@@ -1,0 +1,54 @@
+# Configuration comes from the same environment variables the Go services use.
+# NOTIFICATION_HTTP_ADDR and NOTIFICATION_DATABASE_URL are translated in
+# NotificationApplication; everything else is read here.
+spring:
+  application:
+    name: notification
+  main:
+    banner-mode: off
+  threads:
+    virtual:
+      enabled: true
+  # Same pool size as the Go services. A short connection timeout keeps /ready
+  # from hanging for 30 seconds when Postgres is gone.
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 3000
+  # Matches libs/go-platform/kafkax: start from the earliest offset for a new
+  # group, commit after each record, wait for all replicas on DLQ writes.
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+    producer:
+      acks: all
+    listener:
+      ack-mode: record
+
+server:
+  shutdown: graceful
+
+# Prometheus scrapes /metrics on every service, so the actuator endpoint is
+# mapped there. Nothing else from actuator is exposed.
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: prometheus
+      path-mapping:
+        prometheus: metrics
+  metrics:
+    tags:
+      service: notification
+
+IDENTITY_SECRET: ""
+
+# JSON logs on stdout, like the Go services, so the same log pipeline parses
+# them.
+logging:
+  structured:
+    format:
+      console: logstash

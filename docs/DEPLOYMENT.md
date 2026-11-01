@@ -28,8 +28,8 @@ supplies every credential; none are in the repo.
 ## 1. Postgres (Neon)
 
 1. Create a Neon project.
-2. Create seven databases: `auth`, `users`, `content`, `playback`,
-   `analytics`, `ai_media`, `recommendation`. `scripts/deploy/neon-setup.sh`
+2. Create eight databases: `auth`, `users`, `content`, `playback`,
+   `analytics`, `notification`, `ai_media`, `recommendation`. `scripts/deploy/neon-setup.sh`
    does this over `psql` from `NEON_ADMIN_URL` (the direct, non-pooler endpoint);
    it is idempotent.
 3. Note the pooled connection string for each. Each service gets exactly one as
@@ -166,6 +166,7 @@ scripts/deploy/render.py --only auralis-gateway
 | auralis-content | services/content/Dockerfile | 8082 | web |
 | auralis-playback | services/playback/Dockerfile | 8084 | web |
 | auralis-analytics | services/analytics/Dockerfile | 8087 | web |
+| auralis-notification | services/notification/Dockerfile | 8088 | web |
 | auralis-ai-media | services/ai_media/Dockerfile | 8085 | web |
 | auralis-recommendation | services/recommendation/Dockerfile | 8086 | web |
 
@@ -186,8 +187,8 @@ and `SERVICE_SHARED_TOKEN` on `/internal/*`, so a reachable URL is not an open
 door, but for a hardened deployment move them behind a private network on a
 paid plan. The gateway reaches them by their `onrender.com` hostnames set as
 `AUTH_SERVICE_URL`, `USER_SERVICE_URL`, `CONTENT_SERVICE_URL`,
-`PLAYBACK_SERVICE_URL`, `ANALYTICS_SERVICE_URL`, `AI_MEDIA_SERVICE_URL`,
-`RECOMMENDATION_SERVICE_URL`. Playback also needs `CONTENT_SERVICE_URL` and
+`PLAYBACK_SERVICE_URL`, `ANALYTICS_SERVICE_URL`, `NOTIFICATION_SERVICE_URL`,
+`AI_MEDIA_SERVICE_URL`, `RECOMMENDATION_SERVICE_URL`. Playback also needs `CONTENT_SERVICE_URL` and
 `USER_SERVICE_URL`; ai-media needs `CONTENT_SERVICE_URL` (and optionally
 `USER_SERVICE_URL`).
 

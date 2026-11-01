@@ -27,6 +27,7 @@ data:
   RECOMMENDATION_SERVICE_URL: "http://recommendation:8086"
   AI_MEDIA_SERVICE_URL: "http://ai-media:8085"
   ANALYTICS_SERVICE_URL: "http://analytics:8087"
+  NOTIFICATION_SERVICE_URL: "http://notification:8088"
   REDIS_URL: "redis://redis:6379/0"
   AI_DEFAULT_PROVIDER: "auto"
 ---
@@ -66,5 +67,6 @@ stringData:
   CONTENT_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/content?sslmode=disable"
   PLAYBACK_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/playback?sslmode=disable"
   ANALYTICS_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/analytics?sslmode=disable"
+  NOTIFICATION_DATABASE_URL: "postgres://auralis:auralis@postgres:5432/notification?sslmode=disable"
   AI_MEDIA_DATABASE_URL: "postgresql://auralis:auralis@postgres:5432/ai_media"
   RECOMMENDATION_DATABASE_URL: "postgresql://auralis:auralis@postgres:5432/recommendation"

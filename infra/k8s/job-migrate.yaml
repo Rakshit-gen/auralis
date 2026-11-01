@@ -43,6 +43,12 @@ spec:
           env:
             - name: ANALYTICS_DATABASE_URL
               valueFrom: { secretKeyRef: { name: auralis-db, key: ANALYTICS_DATABASE_URL } }
+        - name: notification
+          image: ghcr.io/rakshit-gen/auralis-notification:latest
+          args: ["migrate"]
+          env:
+            - name: NOTIFICATION_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: NOTIFICATION_DATABASE_URL } }
         - name: ai-media
           image: ghcr.io/rakshit-gen/auralis-ai-media:latest
           args: ["migrate"]

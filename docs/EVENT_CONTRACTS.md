@@ -52,6 +52,15 @@ Consumer: user creates the profile, default preferences, base entitlement.
 ```
 Consumers: analytics (premium counts), recommendation (preference weighting).
 
+### user.followed (v1) / user.unfollowed (v1), producer: user
+
+```json
+{ "user_id": "uuid", "show_id": "uuid" }
+```
+Emitted only when the follow actually changed, so a repeated follow request
+publishes nothing. Consumers: analytics (`show_stats.follows`), notification
+(`show_followers` projection).
+
 ### content.show_published (v1), producer: content
 
 The publication payload is shared by the show and episode publish events. The
@@ -80,6 +89,11 @@ The event carries no media keys. Playback consumes it, then calls
 `GET /internal/episodes/{id}` on content to pull the HLS master key and audio
 variants into `episode_cache`. Keeping the large, mutable media metadata out of
 the event means a re-package does not need a new publish event.
+
+Notification consumes it too: every follower of `show_id` except `creator_id`
+gets a `new_episode` notification built from `title`, `episode_number` and
+`episode_title`. Re-publishing the same `episode_id` does not notify anyone
+twice.
 
 ### content.episode_unpublished (v1) / content.episode_archived (v1), producer: content
 

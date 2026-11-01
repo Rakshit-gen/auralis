@@ -10,6 +10,7 @@ resources:
   - observability.yaml
   - services-go.yaml
   - services-python.yaml
+  - services-java.yaml
   - frontend.yaml
 # job-migrate.yaml is intentionally not included: apply it on demand with
 #   kubectl apply -f infra/k8s/job-migrate.yaml

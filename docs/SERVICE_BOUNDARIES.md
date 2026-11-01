@@ -132,3 +132,23 @@ retention for admins).
 
 **Not responsible for**: storing raw events. It aggregates on ingest and keeps
 only rollups.
+
+## notification
+
+Written in Java 21 with Spring Boot; the only JVM service.
+
+**Owns**: `processed_events`, `show_followers`, `notifications`.
+
+**Responsible for**: keeping a projection of who follows which show from
+`user.followed` / `user.unfollowed`, and writing one in-app notification per
+follower when `content.episode_published` arrives (the show's creator is
+skipped). Serving the caller's inbox: list, unread count, mark one read, mark
+all read.
+
+**Not responsible for**: owning follows. `user` is the source of truth;
+`show_followers` is a copy that can be rebuilt by replaying the user topic.
+Email or push delivery is not built; notifications are in-app only.
+
+**Ordering caveat**: follows and publishes arrive on different topics, so a
+follow that lands a moment after a publish does not get a notification for
+that episode. Later episodes are unaffected.

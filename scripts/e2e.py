@@ -3,8 +3,8 @@
 
 Exercises the paths a real user takes and asserts the cross-service effects:
 register, browse, authorize playback, save progress, resume, like, follow,
-generate an AI series, and (as admin) read analytics. Exits non-zero on the
-first failure.
+read the notification inbox, generate an AI series, and (as admin) read
+analytics. Exits non-zero on the first failure.
 
     python scripts/e2e.py            # against http://localhost:8080
     GATEWAY_URL=https://... python scripts/e2e.py
@@ -121,6 +121,8 @@ def main() -> None:
     follows = http.get("/api/me/follows", headers=h).json()["follows"]
     check("like recorded", any(l["target_id"] == a_show["id"] for l in likes))
     check("follow recorded", any(f["show_id"] == a_show["id"] for f in follows))
+    inbox = http.get("/api/notifications", headers=h)
+    check("notification inbox reachable", inbox.status_code == 200 and "unread" in inbox.json(), inbox.text[:160])
 
     # 11. Continue listening shelf
     cont = http.get("/api/playback/continue", headers=h).json()["items"]

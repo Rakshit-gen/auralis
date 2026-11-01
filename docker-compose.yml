@@ -131,6 +131,7 @@ services:
       RECOMMENDATION_SERVICE_URL: http://recommendation:8086
       AI_MEDIA_SERVICE_URL: http://ai-media:8085
       ANALYTICS_SERVICE_URL: http://analytics:8087
+      NOTIFICATION_SERVICE_URL: http://notification:8088
     ports: ["8080:8080"]
     depends_on:
       redis: { condition: service_healthy }
@@ -193,6 +194,16 @@ services:
       ANALYTICS_HTTP_ADDR: ":8087"
       ANALYTICS_DATABASE_URL: postgres://auralis:auralis@postgres:5432/analytics?sslmode=disable
     ports: ["8087:8087"]
+
+  # --- Java services ----------------------------------------------------
+  notification:
+    <<: *go-build
+    build: { context: ., dockerfile: services/notification/Dockerfile }
+    environment:
+      <<: *service-env
+      NOTIFICATION_HTTP_ADDR: ":8088"
+      NOTIFICATION_DATABASE_URL: postgres://auralis:auralis@postgres:5432/notification?sslmode=disable
+    ports: ["8088:8088"]
 
   # --- Python services --------------------------------------------------
   ai-media:

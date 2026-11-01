@@ -24,6 +24,20 @@ where relevant, a real broker rather than mocks.
 | `services/gateway/internal` | JWT edge verification, identity header signing, proxying |
 | `services/analytics/internal` | idempotent consumption, projection updates |
 
+### Java (`make test-java`)
+
+`mvn verify` in `services/notification`. The unit tests always run; the ones
+that need Postgres run when `NOTIFICATION_TEST_DATABASE_URL` points at a
+disposable database, the same gating the Go services use.
+
+| Test | Covers |
+| --- | --- |
+| `config/EnvTest` | HTTP addr, postgres URL and Kafka SASL/TLS translation |
+| `events/EnvelopeTest` | envelope validation, matching the Go rules |
+| `web/IdentityTest` | identity HMAC, pinned against a signature produced by the Go code |
+| `events/EventHandlerTest` | fan-out, creator skip, redelivery, re-publish, unfollow, rollback, version skip, replay cutoff |
+| `web/NotificationApiTest` | 401 envelope, forged signatures, keyset paging, owner scoping, read and read-all |
+
 ### Python (`make test-py`)
 
 `pytest` in each service.
@@ -136,6 +150,7 @@ and restore it afterward.
 
 - Go: `gofmt` check, `go vet`, `go test` with a Postgres and Kafka service
   container.
+- Java: `mvn verify` with a Postgres service container.
 - Python: `ruff check`, `ruff format --check`, `pytest`.
 - Frontend: `npm run lint`, `npm run typecheck`, `npm run test`, `npm run
   build`.

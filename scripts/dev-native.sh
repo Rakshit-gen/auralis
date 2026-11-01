@@ -59,7 +59,7 @@ wait_http() {
 cmd_up() {
   mkdir -p "$PIDS" "$LOGS"
 
-  for db in auth users content playback analytics ai_media recommendation; do
+  for db in auth users content playback analytics notification ai_media recommendation; do
     createdb "$db" 2>/dev/null || true
   done
 
@@ -76,6 +76,8 @@ cmd_up() {
   for s in gateway auth user content playback analytics; do
     (cd "$ROOT/services/$s" && go build -o "$RUN/bin/$s" .)
   done
+  echo "building the Java notification service..."
+  (cd "$ROOT/services/notification" && mvn -q -B package -DskipTests)
 
   echo "starting services..."
   AUTH_DATABASE_URL="$(pg auth)" AUTH_HTTP_ADDR=":8081" \
@@ -84,6 +86,8 @@ cmd_up() {
   USER_DATABASE_URL="$(pg users)" USER_HTTP_ADDR=":8083" start user "$RUN/bin/user"
   CONTENT_DATABASE_URL="$(pg content)" CONTENT_HTTP_ADDR=":8082" start content "$RUN/bin/content"
   ANALYTICS_DATABASE_URL="$(pg analytics)" ANALYTICS_HTTP_ADDR=":8087" start analytics "$RUN/bin/analytics"
+  NOTIFICATION_DATABASE_URL="$(pg notification)" NOTIFICATION_HTTP_ADDR=":8088" \
+    start notification java -jar "$ROOT/services/notification/target/notification.jar"
   PLAYBACK_DATABASE_URL="$(pg playback)" PLAYBACK_HTTP_ADDR=":8084" \
     CONTENT_SERVICE_URL="http://localhost:8082" USER_SERVICE_URL="http://localhost:8083" \
     start playback "$RUN/bin/playback"
@@ -103,7 +107,7 @@ cmd_up() {
     AUTH_SERVICE_URL="http://localhost:8081" USER_SERVICE_URL="http://localhost:8083" \
     CONTENT_SERVICE_URL="http://localhost:8082" PLAYBACK_SERVICE_URL="http://localhost:8084" \
     RECOMMENDATION_SERVICE_URL="http://localhost:8086" AI_MEDIA_SERVICE_URL="http://localhost:8085" \
-    ANALYTICS_SERVICE_URL="http://localhost:8087" \
+    ANALYTICS_SERVICE_URL="http://localhost:8087" NOTIFICATION_SERVICE_URL="http://localhost:8088" \
     start gateway "$RUN/bin/gateway"
 
   wait_http "http://localhost:8080/health"

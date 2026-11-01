@@ -23,6 +23,7 @@ data:
   RECOMMENDATION_SERVICE_URL: "http://recommendation:8086"
   AI_MEDIA_SERVICE_URL: "http://ai-media:8085"
   ANALYTICS_SERVICE_URL: "http://analytics:8087"
+  NOTIFICATION_SERVICE_URL: "http://notification:8088"
 {{- if .Values.secrets.create }}
 ---
 apiVersion: v1
@@ -53,6 +54,7 @@ stringData:
   CONTENT_DATABASE_URL: {{ .Values.database.content | quote }}
   PLAYBACK_DATABASE_URL: {{ .Values.database.playback | quote }}
   ANALYTICS_DATABASE_URL: {{ .Values.database.analytics | quote }}
+  NOTIFICATION_DATABASE_URL: {{ .Values.database.notification | quote }}
   AI_MEDIA_DATABASE_URL: {{ .Values.database.aiMedia | quote }}
   RECOMMENDATION_DATABASE_URL: {{ .Values.database.recommendation | quote }}
 {{- end }}

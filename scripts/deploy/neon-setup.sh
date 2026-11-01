@@ -22,7 +22,7 @@ fi
 
 : "${NEON_ADMIN_URL:?set NEON_ADMIN_URL to the direct-endpoint neondb connection string}"
 
-databases=(auth users content playback analytics ai_media recommendation)
+databases=(auth users content playback analytics notification ai_media recommendation)
 
 for db in "${databases[@]}"; do
   exists="$(psql "$NEON_ADMIN_URL" -tAc "SELECT 1 FROM pg_database WHERE datname = '$db'")"

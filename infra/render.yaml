@@ -87,6 +87,8 @@ services:
         value: https://auralis-playback.onrender.com
       - key: ANALYTICS_SERVICE_URL
         value: https://auralis-analytics.onrender.com
+      - key: NOTIFICATION_SERVICE_URL
+        value: https://auralis-notification.onrender.com
       - key: AI_MEDIA_SERVICE_URL
         value: https://auralis-ai-media.onrender.com
       - key: RECOMMENDATION_SERVICE_URL
@@ -182,6 +184,22 @@ services:
       - key: ANALYTICS_HTTP_ADDR
         value: 0.0.0.0:10000
       - key: ANALYTICS_DATABASE_URL
+        sync: false
+
+  - type: web
+    name: auralis-notification
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/notification/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - key: NOTIFICATION_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: NOTIFICATION_DATABASE_URL
         sync: false
 
   - type: web

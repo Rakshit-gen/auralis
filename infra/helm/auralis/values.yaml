@@ -43,10 +43,11 @@ database:
   content: "postgres://auralis:auralis@postgres:5432/content?sslmode=disable"
   playback: "postgres://auralis:auralis@postgres:5432/playback?sslmode=disable"
   analytics: "postgres://auralis:auralis@postgres:5432/analytics?sslmode=disable"
+  notification: "postgres://auralis:auralis@postgres:5432/notification?sslmode=disable"
   aiMedia: "postgresql://auralis:auralis@postgres:5432/ai_media"
   recommendation: "postgresql://auralis:auralis@postgres:5432/recommendation"
 
-# The eight services plus the ai-media worker. `image` defaults to
+# The nine services plus the ai-media worker. `image` defaults to
 # <registry>/auralis-<name>:<tag>. `dbKey` names the entry in `database`
 # whose value is injected as <DBENV>.
 services:
@@ -111,6 +112,18 @@ services:
     resources:
       requests: { cpu: 50m, memory: 64Mi }
       limits: { cpu: 500m, memory: 256Mi }
+  notification:
+    port: 8088
+    replicas: 1
+    addrEnv: NOTIFICATION_HTTP_ADDR
+    addrValue: ":8088"
+    dbKey: notification
+    dbEnv: NOTIFICATION_DATABASE_URL
+    # The JVM takes longer than a Go binary to start answering probes.
+    jvmProbeDelay: true
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: "1", memory: 512Mi }
   ai-media:
     port: 8085
     replicas: 1

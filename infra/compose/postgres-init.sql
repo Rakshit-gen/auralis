@@ -8,3 +8,4 @@ CREATE DATABASE playback;
 CREATE DATABASE analytics;
 CREATE DATABASE ai_media;
 CREATE DATABASE recommendation;
+CREATE DATABASE notification;

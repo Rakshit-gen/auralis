@@ -146,3 +146,23 @@ and a third-party dependency without teaching anything new.
 
 **Cost.** "Upgrade to premium" is not a real flow. Entitlement changes are an
 admin action plus a `user.entitlement_changed` event.
+
+## 11. Notifications fan out from a local follower projection
+
+**Decision.** The notification service keeps its own `show_followers` table,
+built from `user.followed` / `user.unfollowed`, and fans a new episode out to
+followers with a single `INSERT ... SELECT` when `content.episode_published`
+arrives. It is written in Java with Spring Boot.
+
+**Why.** Asking `user` for the follower list on every publish would put a
+synchronous call, and its failure modes, on the event path. The projection
+keeps the consumer self-contained and the fan-out one round trip regardless of
+follower count. A unique key on `(user_id, kind, episode_id)` makes a
+re-publish harmless. Java was chosen to add a JVM service to the platform; it
+proves the shared contracts (envelope, identity HMAC, error body, health and
+metrics paths) are language-neutral rather than Go-specific.
+
+**Cost.** Follows and publishes travel on different topics, so a follow that
+lands just after a publish misses that one episode. A second runtime to build,
+patch and size for memory: its manifests request 256Mi, where the Go services
+request 64Mi to 96Mi. Delivery is in-app only; there is no email or push.

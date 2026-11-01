@@ -1,0 +1,50 @@
+# Java services. Same shape as services-go.yaml; the JVM needs more memory
+# headroom than a Go binary, so requests and limits are higher.
+# notification -------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification
+  namespace: auralis
+spec:
+  selector: { app: notification }
+  ports: [{ port: 8088, targetPort: 8088 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification
+  namespace: auralis
+  labels: { app: notification }
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: notification }
+  template:
+    metadata:
+      labels: { app: notification }
+    spec:
+      containers:
+        - name: notification
+          image: ghcr.io/rakshit-gen/auralis-notification:latest
+          ports: [{ containerPort: 8088 }]
+          envFrom:
+            - configMapRef: { name: auralis-config }
+            - secretRef: { name: auralis-secrets }
+          env:
+            - { name: NOTIFICATION_HTTP_ADDR, value: ":8088" }
+            - name: NOTIFICATION_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: auralis-db, key: NOTIFICATION_DATABASE_URL } }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8088 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8088 }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
