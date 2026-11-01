@@ -73,6 +73,15 @@ cd services/recommendation
 ../../.venv/bin/python -m auralis_reco
 ```
 
+The Java service builds with Maven and takes the same `migrate` argument:
+
+```
+cd services/notification
+mvn -q package -DskipTests
+NOTIFICATION_DATABASE_URL=postgres://localhost:5432/notification?sslmode=disable \
+  IDENTITY_SECRET=dev KAFKA_BROKERS=localhost:9092 java -jar target/notification.jar
+```
+
 Each service reads its config from the environment; see the service's
 `settings` file for the full list and defaults.
 
