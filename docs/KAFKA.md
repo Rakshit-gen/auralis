@@ -119,4 +119,7 @@ partitions across them:
   alert on sustained growth. The Java service exports the Kafka client's own
   `kafka_consumer_fetch_manager_records_lag_max` instead. See [OBSERVABILITY.md](OBSERVABILITY.md).
 - Offsets start at `FirstOffset` for a new group, so a fresh `recommendation`,
-  `analytics` or `notification` database is populated by replaying history.
+  `analytics` or `notification` database is populated by replaying history. The
+  notification service rebuilds its follower list this way but does not
+  notify for publish events older than `NOTIFICATION_MAX_PUBLISH_AGE`
+  (default 24h), so a replay does not flood inboxes with old episodes.
