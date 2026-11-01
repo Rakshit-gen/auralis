@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.auralis.notification.DatabaseTest;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,10 +24,14 @@ class EventHandlerTest extends DatabaseTest {
     final UUID fan = UUID.randomUUID();
 
     Envelope event(UUID id, String type, String payload) {
+        return event(id, type, payload, Instant.now());
+    }
+
+    Envelope event(UUID id, String type, String payload, Instant at) {
         return Envelope.parse(json, """
                 {"event_id":"%s","event_type":"%s","event_version":1,
-                 "occurred_at":"2026-09-08T12:00:00Z","producer":"test","payload":%s}
-                """.formatted(id, type, payload));
+                 "occurred_at":"%s","producer":"test","payload":%s}
+                """.formatted(id, type, at, payload));
     }
 
     Envelope follow(UUID user) {
@@ -100,5 +106,16 @@ class EventHandlerTest extends DatabaseTest {
                  "occurred_at":"2026-09-08T12:00:00Z","producer":"test","payload":{}}
                 """.formatted(UUID.randomUUID())));
         assertThat(notifications(fan)).isZero();
+    }
+
+    @Test
+    void oldPublishFromAReplayDoesNotNotify() {
+        handler.handle(follow(fan));
+        handler.handle(event(UUID.randomUUID(), "content.episode_published", """
+                {"show_id":"%s","title":"The Vantage","creator_id":"%s","episode_id":"%s",
+                 "episode_number":1,"episode_title":"Pilot"}
+                """.formatted(show, creator, UUID.randomUUID()), Instant.now().minus(3, ChronoUnit.DAYS)));
+        assertThat(notifications(fan)).isZero();
+        assertThat(db.queryForObject("SELECT count(*) FROM show_followers", Long.class)).isEqualTo(1);
     }
 }
