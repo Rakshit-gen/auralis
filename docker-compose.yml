@@ -131,6 +131,7 @@ services:
       RECOMMENDATION_SERVICE_URL: http://recommendation:8086
       AI_MEDIA_SERVICE_URL: http://ai-media:8085
       ANALYTICS_SERVICE_URL: http://analytics:8087
+      NOTIFICATION_SERVICE_URL: http://notification:8088
     ports: ["8080:8080"]
     depends_on:
       redis: { condition: service_healthy }
