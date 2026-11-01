@@ -9,6 +9,12 @@ spring:
   threads:
     virtual:
       enabled: true
+  # Same pool size as the Go services. A short connection timeout keeps /ready
+  # from hanging for 30 seconds when Postgres is gone.
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 3000
 
 server:
   shutdown: graceful
