@@ -185,6 +185,22 @@ services:
         sync: false
 
   - type: web
+    name: auralis-notification
+    runtime: docker
+    plan: free
+    region: ohio
+    branch: master
+    dockerfilePath: ./services/notification/Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - fromGroup: auralis-shared
+      - key: NOTIFICATION_HTTP_ADDR
+        value: 0.0.0.0:10000
+      - key: NOTIFICATION_DATABASE_URL
+        sync: false
+
+  - type: web
     name: auralis-ai-media
     runtime: docker
     plan: free
