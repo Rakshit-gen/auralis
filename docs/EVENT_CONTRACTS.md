@@ -52,6 +52,15 @@ Consumer: user creates the profile, default preferences, base entitlement.
 ```
 Consumers: analytics (premium counts), recommendation (preference weighting).
 
+### user.followed (v1) / user.unfollowed (v1), producer: user
+
+```json
+{ "user_id": "uuid", "show_id": "uuid" }
+```
+Emitted only when the follow actually changed, so a repeated follow request
+publishes nothing. Consumers: analytics (`show_stats.follows`), notification
+(`show_followers` projection).
+
 ### content.show_published (v1), producer: content
 
 The publication payload is shared by the show and episode publish events. The
