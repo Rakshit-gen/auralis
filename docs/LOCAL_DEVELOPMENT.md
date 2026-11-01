@@ -34,22 +34,22 @@ as its own container (`ai-media-worker`, `command: ["worker"]`).
 
 ## Option B: Native, no containers
 
-`scripts/dev-native.sh` runs the Go services as compiled binaries and the
-Python services in the venv, against Homebrew Postgres, Kafka, and Redis plus a
+`scripts/dev-native.sh` runs the Go services as compiled binaries, the Java
+notification service as a jar, and the Python services in the venv, against Homebrew Postgres, Kafka, and Redis plus a
 downloaded MinIO. Faster iteration, no Docker.
 
 ```
-brew install postgresql@16 kafka redis
+brew install postgresql@16 kafka redis openjdk@21 maven
 brew services start postgresql@16 kafka redis
 make dev-setup
-scripts/dev-native.sh up      # builds, migrates, seeds, starts all 8 + minio
+scripts/dev-native.sh up      # builds, migrates, seeds, starts all 9 + minio
 scripts/dev-native.sh logs
 scripts/dev-native.sh down
 ```
 
 State lives in `.native/` (`pids`, `logs`, `bin`, `minio-data`). Ports match
 Compose: gateway 8080, auth 8081, content 8082, user 8083, playback 8084,
-ai-media 8085, recommendation 8086, analytics 8087.
+ai-media 8085, recommendation 8086, analytics 8087, notification 8088.
 
 Rate limits can be relaxed for load testing with env overrides, for example
 `GATEWAY_RATE_LIMIT=200000 AUTH_RATE_LIMIT_RPM=100000 AUTH_RATE_LIMIT_BURST=5000
