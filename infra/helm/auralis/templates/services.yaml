@@ -61,11 +61,11 @@ spec:
             {{- end }}
           readinessProbe:
             httpGet: { path: /ready, port: {{ $svc.port }} }
-            initialDelaySeconds: {{ if $svc.pythonProbeDelay }}8{{ else }}5{{ end }}
+            initialDelaySeconds: {{ if $svc.jvmProbeDelay }}15{{ else if $svc.pythonProbeDelay }}8{{ else }}5{{ end }}
             periodSeconds: 10
           livenessProbe:
             httpGet: { path: /health, port: {{ $svc.port }} }
-            initialDelaySeconds: {{ if $svc.pythonProbeDelay }}15{{ else }}10{{ end }}
+            initialDelaySeconds: {{ if $svc.jvmProbeDelay }}30{{ else if $svc.pythonProbeDelay }}15{{ else }}10{{ end }}
             periodSeconds: 20
           resources:
             {{- toYaml $svc.resources | nindent 12 }}
