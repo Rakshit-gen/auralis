@@ -166,6 +166,7 @@ scripts/deploy/render.py --only auralis-gateway
 | auralis-content | services/content/Dockerfile | 8082 | web |
 | auralis-playback | services/playback/Dockerfile | 8084 | web |
 | auralis-analytics | services/analytics/Dockerfile | 8087 | web |
+| auralis-notification | services/notification/Dockerfile | 8088 | web |
 | auralis-ai-media | services/ai_media/Dockerfile | 8085 | web |
 | auralis-recommendation | services/recommendation/Dockerfile | 8086 | web |
 
