@@ -13,7 +13,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * Base for tests that need Postgres. Like the Go services, they run only when
  * NOTIFICATION_TEST_DATABASE_URL points at a disposable database.
  */
-@SpringBootTest(properties = {"IDENTITY_SECRET=test-identity-secret", "NOTIFICATION_RUN_CONSUMER=false"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {"IDENTITY_SECRET=test-identity-secret", "NOTIFICATION_RUN_CONSUMER=false"})
 @EnabledIfEnvironmentVariable(named = "NOTIFICATION_TEST_DATABASE_URL", matches = ".+")
 public abstract class DatabaseTest {
 
