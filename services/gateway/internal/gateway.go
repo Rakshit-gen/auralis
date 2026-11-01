@@ -146,6 +146,7 @@ func defaultRoutes() []Route {
 		{Prefix: "/api/generate", Backend: "ai-media", TargetPrefix: "/generate"},
 		{Prefix: "/api/ai", Backend: "ai-media", TargetPrefix: "/ai"},
 		{Prefix: "/api/analytics", Backend: "analytics", TargetPrefix: "/analytics"},
+		{Prefix: "/api/notifications", Backend: "notification", TargetPrefix: "/notifications"},
 	}
 }
 
