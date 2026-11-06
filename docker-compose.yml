@@ -52,7 +52,7 @@ services:
       retries: 20
 
   kafka:
-    image: bitnami/kafka:3.9
+    image: soldevelo/kafka:3.9
     environment:
       KAFKA_CFG_NODE_ID: "1"
       KAFKA_CFG_PROCESS_ROLES: broker,controller
