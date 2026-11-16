@@ -92,6 +92,10 @@ func (r *Relay) drain(ctx context.Context) (int, error) {
 	}
 }
 
+// publishTimeout bounds one batch's Kafka write while the relay holds its
+// transaction open.
+const publishTimeout = 15 * time.Second
+
 // relayLockKey is an arbitrary fixed key for the advisory lock that serializes
 // relays across service instances.
 const relayLockKey = 0x6175726c7279 // "aurlry"
@@ -161,7 +165,10 @@ func (r *Relay) drainBatch(ctx context.Context) (int, error) {
 	for _, b := range bads {
 		logging.L(ctx).Error("outbox row is not a valid envelope, dead-lettering it",
 			"service", r.service, "id", b.id, "topic", b.topic, "error", b.err.Error())
-		if err := r.producer.PublishRaw(ctx, b.topic+kafkax.DeadLetterSuffix, b.key, b.raw); err != nil {
+		pctx, cancel := context.WithTimeout(ctx, publishTimeout)
+		err := r.producer.PublishRaw(pctx, b.topic+kafkax.DeadLetterSuffix, b.key, b.raw)
+		cancel()
+		if err != nil {
 			return 0, err
 		}
 		ids = append(ids, b.id)
@@ -176,7 +183,14 @@ func (r *Relay) drainBatch(ctx context.Context) (int, error) {
 	// marked published; the rows are retried next tick and consumers dedupe on
 	// event_id. Per-entity order holds because the partition key is the
 	// aggregate id and kafka-go writes each partition's messages in order.
-	if err := r.producer.PublishBatch(ctx, rowsToPublish); err != nil {
+	//
+	// The transaction, and the relay lock with it, stays open across this
+	// call, which is what keeps another instance from publishing a later
+	// event first. publishTimeout caps how long that can last when Kafka is
+	// slow; the batch is then retried on the next tick.
+	pctx, cancel := context.WithTimeout(ctx, publishTimeout)
+	defer cancel()
+	if err := r.producer.PublishBatch(pctx, rowsToPublish); err != nil {
 		return 0, err
 	}
 	if _, err := tx.Exec(ctx,
