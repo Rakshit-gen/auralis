@@ -139,7 +139,12 @@ class LocalTTSProvider:
             else:
                 voice = _ESPEAK_LANG_BASE.get(lang, "en-us")
             seg_path = os.path.join(out_dir, f"seg_{i:04d}.wav")
-            await _run([self._bin, "-v", voice, "-s", "165", "-w", seg_path, seg.text.replace("\n", " ")[:1800]])
+            # Text goes in on stdin: as an argument, a line starting with "-"
+            # would be read as an espeak option (-w writes to any path).
+            await _run(
+                [self._bin, "-v", voice, "-s", "165", "-w", seg_path, "--stdin"],
+                stdin=seg.text.replace("\n", " ")[:1800].encode(),
+            )
             with wave.open(seg_path, "rb") as w:
                 rate = w.getframerate()
             parts.append(seg_path)

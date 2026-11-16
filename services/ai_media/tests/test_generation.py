@@ -129,3 +129,14 @@ async def test_stuck_subprocess_is_killed():
 
     with pytest.raises(GenerationError, match="took longer"):
         await run_process(["sleep", "30"], limit_sec=0.2)
+
+
+@pytest.mark.asyncio
+async def test_espeak_text_is_never_an_option(tmp_path):
+    if not shutil.which("espeak-ng"):
+        pytest.skip("espeak-ng not installed")
+    stray = tmp_path / "stray.wav"
+    seg = TTSSegment(speaker="Narrator", text=f"-w{stray}", voice="narrator")
+    result = await LocalTTSProvider().synthesize([seg], str(tmp_path / "out"))
+    assert not stray.exists()
+    assert result.duration_sec > 0.5
