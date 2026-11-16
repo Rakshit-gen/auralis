@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,9 +39,9 @@ func stubContent(episodeID, showID string, premium bool) *httptest.Server {
 				"status": "published", "is_premium": premium, "free_preview_sec": 60,
 				"duration_sec": 1400, "hls_master_key": "hls/" + episodeID + "/master.m3u8",
 				"audio_variants": []map[string]any{
-					{"bitrate_kbps": 64, "key": "a/64.m3u8", "codec": "aac"},
-					{"bitrate_kbps": 128, "key": "a/128.m3u8", "codec": "aac"},
-					{"bitrate_kbps": 256, "key": "a/256.m3u8", "codec": "aac"},
+					{"bitrate_kbps": 64, "key": "hls/" + episodeID + "/64.m3u8", "codec": "aac"},
+					{"bitrate_kbps": 128, "key": "hls/" + episodeID + "/128.m3u8", "codec": "aac"},
+					{"bitrate_kbps": 256, "key": "hls/" + episodeID + "/256.m3u8", "codec": "aac"},
 				},
 			},
 			"show": map[string]any{"slug": "harbor-lights", "title": "Harbor Lights"},
@@ -62,6 +64,21 @@ func (fakeSigner) PresignGet(_ context.Context, key string, _ time.Duration) (st
 
 func (fakeSigner) PublicURL(string) string { return "" }
 
+// GetBytes serves a master playlist and, for any other key, a 20-segment
+// media playlist of 6-second segments.
+func (fakeSigner) GetBytes(_ context.Context, key string) ([]byte, error) {
+	if strings.HasSuffix(key, "master.m3u8") {
+		return []byte("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=64000\n64.m3u8\n"), nil
+	}
+	var b strings.Builder
+	b.WriteString("#EXTM3U\n#EXT-X-TARGETDURATION:6\n")
+	for i := range 20 {
+		fmt.Fprintf(&b, "#EXTINF:6.000000,\nseg%d.ts\n", i)
+	}
+	b.WriteString("#EXT-X-ENDLIST\n")
+	return []byte(b.String()), nil
+}
+
 func setup(t *testing.T, content, users *httptest.Server) (*httptest.Server, *App, *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
@@ -81,7 +98,7 @@ func setup(t *testing.T, content, users *httptest.Server) (*httptest.Server, *Ap
 
 	app := NewApp(NewStore(pool), fakeSigner{},
 		svcclient.New(content.URL, "svc", "playback"),
-		svcclient.New(users.URL, "svc", "playback"))
+		svcclient.New(users.URL, "svc", "playback"), "stream-secret")
 	r := chi.NewRouter()
 	r.Use(authn.ServiceMiddleware(secret))
 	app.Routes(r)
@@ -238,8 +255,30 @@ func TestAuthorizePremiumGate(t *testing.T) {
 	if auth["preview_only"] != true || auth["preview_limit_sec"].(float64) != 60 {
 		t.Fatalf("expected preview-only access: %s", data)
 	}
-	if auth["hls_master_url"] == "" {
-		t.Fatal("expected a signed master url even for preview")
+	if strings.Contains(string(data), "hls/") {
+		t.Fatalf("authorize leaked storage keys: %s", data)
+	}
+
+	// The variant playlist a preview listener gets stops at the 60s preview:
+	// of twenty 6s segments, seg0..seg9 and nothing after.
+	master := auth["hls_master_url"].(string)
+	variant := strings.TrimSuffix(master, "master.m3u8") + "64.m3u8"
+	resp, data = call(t, "GET", srv.URL+variant, nil, nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("variant playlist: %d %s", resp.StatusCode, data)
+	}
+	if strings.Count(string(data), ".ts") != 10 || !strings.Contains(string(data), "https://media.test/") {
+		t.Fatalf("unexpected preview playlist:\n%s", data)
+	}
+
+	// A playlist that isn't one of the episode's is refused, as is a bad token.
+	resp, _ = call(t, "GET", srv.URL+strings.TrimSuffix(master, "master.m3u8")+"other.m3u8", nil, nil)
+	if resp.StatusCode != 404 {
+		t.Fatalf("unknown playlist: expected 404, got %d", resp.StatusCode)
+	}
+	resp, _ = call(t, "GET", srv.URL+"/playback/stream/bogus.token/master.m3u8", nil, nil)
+	if resp.StatusCode != 401 {
+		t.Fatalf("bad token: expected 401, got %d", resp.StatusCode)
 	}
 }
 

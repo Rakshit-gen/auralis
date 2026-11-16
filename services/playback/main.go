@@ -85,7 +85,7 @@ func main() {
 	store := internal.NewStore(pool)
 	app := internal.NewApp(store, objects,
 		svcclient.New(contentURL, serviceToken, "playback"),
-		svcclient.New(userURL, serviceToken, "playback"))
+		svcclient.New(userURL, serviceToken, "playback"), identitySecret)
 
 	if runConsumer {
 		consumer := kafkax.NewConsumer(kafkax.ConsumerConfig{

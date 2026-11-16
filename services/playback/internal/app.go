@@ -51,6 +51,7 @@ func domainEventType(clientType string) string {
 type MediaSigner interface {
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error)
 	PublicURL(key string) string
+	GetBytes(ctx context.Context, key string) ([]byte, error)
 }
 
 // App holds the playback service dependencies.
@@ -60,10 +61,13 @@ type App struct {
 	Content   *svcclient.Client
 	Users     *svcclient.Client
 	SignedTTL time.Duration
+	// StreamSecret signs the playlist links authorize hands out.
+	StreamSecret string
 }
 
-func NewApp(store *Store, objects MediaSigner, content, users *svcclient.Client) *App {
-	return &App{Store: store, Objects: objects, Content: content, Users: users, SignedTTL: 2 * time.Hour}
+func NewApp(store *Store, objects MediaSigner, content, users *svcclient.Client, streamSecret string) *App {
+	return &App{Store: store, Objects: objects, Content: content, Users: users, SignedTTL: 2 * time.Hour,
+		StreamSecret: streamSecret}
 }
 
 // mediaURL returns a public URL for key when the bucket has a public base URL
@@ -75,17 +79,21 @@ func (a *App) mediaURL(ctx context.Context, key string) (string, error) {
 	return a.Objects.PresignGet(ctx, key, a.SignedTTL)
 }
 
-// Routes registers playback endpoints. All require an authenticated caller.
+// Routes registers playback endpoints. All require an authenticated caller
+// except stream, whose URL carries its own signed token.
 func (a *App) Routes(r chi.Router) {
 	r.Route("/playback", func(r chi.Router) {
-		r.Use(authn.RequireRoles())
-		r.Post("/authorize", a.authorize)
-		r.Get("/progress/{episodeId}", a.getProgress)
-		r.Post("/progress", a.postProgress)
-		r.Post("/events", a.postEvents)
-		r.Get("/continue", a.continueListening)
-		r.Get("/devices", a.listDevices)
-		r.Put("/devices", a.upsertDevice)
+		r.Get("/stream/{token}/{file}", a.stream)
+		r.Group(func(r chi.Router) {
+			r.Use(authn.RequireRoles())
+			r.Post("/authorize", a.authorize)
+			r.Get("/progress/{episodeId}", a.getProgress)
+			r.Post("/progress", a.postProgress)
+			r.Post("/events", a.postEvents)
+			r.Get("/continue", a.continueListening)
+			r.Get("/devices", a.listDevices)
+			r.Put("/devices", a.upsertDevice)
+		})
 	})
 }
 
@@ -139,22 +147,6 @@ func (a *App) authorize(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	master, err := a.mediaURL(ctx, meta.HLSMasterKey)
-	if err != nil {
-		httpx.Error(w, r, errcodes.New(http.StatusBadGateway, errcodes.Unavailable, "media storage unavailable"))
-		return
-	}
-	variants := make([]map[string]any, 0, len(meta.AudioVariants))
-	for _, v := range meta.AudioVariants {
-		signed, err := a.mediaURL(ctx, v.Key)
-		if err != nil {
-			continue
-		}
-		variants = append(variants, map[string]any{
-			"bitrate_kbps": v.BitrateKbps, "codec": v.Codec, "url": signed,
-		})
-	}
-
 	var deviceID *string
 	if did, derr := a.Store.UpsertDevice(ctx, id.UserID, req.DeviceID, deviceName(r), deviceKind(r)); derr == nil {
 		deviceID = &did
@@ -167,14 +159,21 @@ func (a *App) authorize(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"session_id":          sessionID,
 		"device_id":           deviceID,
-		"episode":             meta,
-		"hls_master_url":      master,
-		"variants":            variants,
+		"episode":             publicMeta(meta),
+		"hls_master_url":      a.streamPath(meta.EpisodeID, previewLimit(meta, previewOnly)),
 		"resume_position_sec": prog.PositionSec,
 		"preview_only":        previewOnly,
 		"preview_limit_sec":   previewLimit(meta, previewOnly),
 		"expires_at":          time.Now().Add(a.SignedTTL).UTC(),
 	})
+}
+
+// publicMeta drops the storage keys: knowing where the playlists are is
+// enough to fetch a whole premium episode from the public bucket.
+func publicMeta(m EpisodeMeta) EpisodeMeta {
+	m.HLSMasterKey = ""
+	m.AudioVariants = nil
+	return m
 }
 
 func previewLimit(meta EpisodeMeta, previewOnly bool) int {
