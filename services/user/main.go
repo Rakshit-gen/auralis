@@ -14,6 +14,7 @@ import (
 	"github.com/auralis/platform/migrate"
 	"github.com/auralis/platform/outbox"
 	"github.com/auralis/platform/server"
+	"github.com/auralis/platform/svcclient"
 	"github.com/auralis/platform/telemetry"
 	"github.com/auralis/user/internal"
 	"github.com/auralis/user/migrations"
@@ -30,6 +31,7 @@ func main() {
 	identitySecret := c.Require("IDENTITY_SECRET")
 	serviceToken := c.Require("SERVICE_SHARED_TOKEN")
 	kafkaBrokers := c.Require("KAFKA_BROKERS")
+	contentURL := c.Require("CONTENT_SERVICE_URL")
 	addr := c.Optional("USER_HTTP_ADDR", ":8083")
 	otlp := c.Optional("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 	corsOrigins := c.CSV("CORS_ALLOWED_ORIGINS", nil)
@@ -66,7 +68,7 @@ func main() {
 	go outbox.NewRelay(pool, producer, "user").Run(bgCtx)
 
 	store := internal.NewStore(pool)
-	app := internal.NewApp(store, serviceToken)
+	app := internal.NewApp(store, serviceToken, svcclient.New(contentURL, serviceToken, "user"))
 
 	if runConsumer {
 		consumer := kafkax.NewConsumer(kafkax.ConsumerConfig{

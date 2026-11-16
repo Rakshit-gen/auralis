@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/auralis/platform/svcclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +30,9 @@ func dbURL() string {
 	}
 	return "postgres://localhost:5432/user_test?sslmode=disable"
 }
+
+// catalogShow is the show every episode belongs to in the stub catalog.
+const catalogShow = "20000000-0000-0000-0000-0000000000aa"
 
 func setup(t *testing.T) (*httptest.Server, *App) {
 	t.Helper()
@@ -49,7 +55,21 @@ func setup(t *testing.T) (*httptest.Server, *App) {
 		VALUES ('TEST-PREMIUM', 30, 10) ON CONFLICT DO NOTHING`)
 	t.Cleanup(pool.Close)
 
-	app := NewApp(NewStore(pool), "svc")
+	content := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := path.Base(r.URL.Path)
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/internal/shows/"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": id, "status": "published"})
+		case strings.HasPrefix(r.URL.Path, "/internal/episodes/"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"episode": map[string]any{"id": id, "show_id": catalogShow, "status": "published"}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(content.Close)
+
+	app := NewApp(NewStore(pool), "svc", svcclient.New(content.URL, "svc", "user"))
 	r := chi.NewRouter()
 	r.Use(authn.ServiceMiddleware(secret))
 	app.Routes(r)
@@ -274,5 +294,40 @@ func TestLibraryChangeAndEventCommitTogether(t *testing.T) {
 	}
 	if got := count(likeEvents); got != 1 {
 		t.Fatalf("duplicate like emitted a spurious event: outbox rows = %d", got)
+	}
+}
+
+func TestLikesAndBookmarksTakeTheShowFromTheCatalog(t *testing.T) {
+	srv, app := setup(t)
+	user := "40000000-0000-0000-0000-0000000000c1"
+	ep := "10000000-0000-0000-0000-0000000000c1"
+	spoof := "20000000-0000-0000-0000-0000000000ff"
+	if err := app.Handle(context.Background(), mkEvent(t, "user.registered", map[string]any{
+		"user_id": user, "email": "spoof@example.com", "display_name": "Spoof",
+	})); err != nil {
+		t.Fatalf("handle registered: %v", err)
+	}
+
+	if resp, data := req(t, "POST", srv.URL+"/me/likes",
+		map[string]string{"type": "episode", "id": ep, "show_id": spoof}, hdr(user, "USER")); resp.StatusCode != 200 {
+		t.Fatalf("like: %d %s", resp.StatusCode, data)
+	}
+	if resp, data := req(t, "POST", srv.URL+"/me/bookmarks",
+		map[string]string{"episode_id": ep, "show_id": spoof}, hdr(user, "USER")); resp.StatusCode != 200 {
+		t.Fatalf("bookmark: %d %s", resp.StatusCode, data)
+	}
+	var right, wrong int
+	if err := app.Store.Pool().QueryRow(context.Background(),
+		`SELECT count(*) FILTER (WHERE envelope->'payload'->>'show_id' = $1),
+		        count(*) FILTER (WHERE envelope->'payload'->>'show_id' <> $1)
+		 FROM outbox_events`, catalogShow).Scan(&right, &wrong); err != nil {
+		t.Fatal(err)
+	}
+	if right != 2 || wrong != 0 {
+		t.Fatalf("events with the catalog's show: %d, with the client's: %d", right, wrong)
+	}
+	if resp, _ := req(t, "POST", srv.URL+"/me/likes",
+		map[string]string{"type": "show", "id": "not-a-uuid"}, hdr(user, "USER")); resp.StatusCode != 404 {
+		t.Fatalf("bad id: expected 404, got %d", resp.StatusCode)
 	}
 }

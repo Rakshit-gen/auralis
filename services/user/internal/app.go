@@ -15,8 +15,10 @@ import (
 	"github.com/auralis/platform/kafkax"
 	"github.com/auralis/platform/logging"
 	"github.com/auralis/platform/outbox"
+	"github.com/auralis/platform/svcclient"
 	"github.com/auralis/platform/telemetry"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -26,10 +28,54 @@ const service = "user"
 type App struct {
 	Store        *Store
 	ServiceToken string
+	Content      *svcclient.Client
 }
 
-func NewApp(store *Store, serviceToken string) *App {
-	return &App{Store: store, ServiceToken: serviceToken}
+func NewApp(store *Store, serviceToken string, content *svcclient.Client) *App {
+	return &App{Store: store, ServiceToken: serviceToken, Content: content}
+}
+
+// showFor returns the published show a like, bookmark or follow target
+// belongs to, from the catalog. Analytics credits these to that show, so
+// taking the show from the client let anyone pad any show's numbers.
+func (a *App) showFor(ctx context.Context, targetType, id string) (string, error) {
+	if uuid.Validate(id) != nil {
+		return "", errcodes.Missing(targetType + " not found")
+	}
+	var showID, status string
+	switch targetType {
+	case "show":
+		var sh struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		}
+		if err := a.Content.Get(ctx, "/internal/shows/"+id, &sh); err != nil {
+			return "", catalogErr(err, targetType)
+		}
+		showID, status = sh.ID, sh.Status
+	default:
+		var resp struct {
+			Episode struct {
+				ShowID string `json:"show_id"`
+				Status string `json:"status"`
+			} `json:"episode"`
+		}
+		if err := a.Content.Get(ctx, "/internal/episodes/"+id, &resp); err != nil {
+			return "", catalogErr(err, targetType)
+		}
+		showID, status = resp.Episode.ShowID, resp.Episode.Status
+	}
+	if status != "published" {
+		return "", errcodes.Missing(targetType + " not found")
+	}
+	return showID, nil
+}
+
+func catalogErr(err error, targetType string) error {
+	if errors.Is(err, svcclient.ErrNotFound) {
+		return errcodes.Missing(targetType + " not found")
+	}
+	return errcodes.New(http.StatusBadGateway, errcodes.Unavailable, "catalog unavailable, try again")
 }
 
 // Routes registers the user endpoints. Everything under /me requires an
@@ -189,16 +235,17 @@ func (a *App) addLike(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.BadRequest("type must be show or episode"))
 		return
 	}
-	if req.ID == "" || req.ShowID == "" {
-		httpx.Error(w, r, errcodes.BadRequest("id and show_id are required"))
+	showID, err := a.showFor(r.Context(), req.Type, req.ID)
+	if err != nil {
+		httpx.Error(w, r, err)
 		return
 	}
 	uid := caller(r)
-	err := a.mutate(r.Context(), "user.liked", uid,
+	err = a.mutate(r.Context(), "user.liked", uid,
 		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
-			added, err := a.Store.AddLike(ctx, tx, uid, req.Type, req.ID, req.ShowID)
+			added, err := a.Store.AddLike(ctx, tx, uid, req.Type, req.ID, showID)
 			return added, map[string]any{
-				"user_id": uid, "target_type": req.Type, "target_id": req.ID, "show_id": req.ShowID,
+				"user_id": uid, "target_type": req.Type, "target_id": req.ID, "show_id": showID,
 			}, err
 		})
 	if err != nil {
@@ -247,20 +294,21 @@ func (a *App) addBookmark(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	if req.EpisodeID == "" || req.ShowID == "" {
-		httpx.Error(w, r, errcodes.BadRequest("episode_id and show_id are required"))
-		return
-	}
 	if len([]rune(req.Note)) > 280 {
 		httpx.Error(w, r, errcodes.BadRequest("note must be 280 characters or fewer"))
 		return
 	}
+	showID, err := a.showFor(r.Context(), "episode", req.EpisodeID)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
 	uid := caller(r)
-	err := a.mutate(r.Context(), "user.bookmarked", uid,
+	err = a.mutate(r.Context(), "user.bookmarked", uid,
 		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
-			added, err := a.Store.AddBookmark(ctx, tx, uid, req.EpisodeID, req.ShowID, req.Note)
+			added, err := a.Store.AddBookmark(ctx, tx, uid, req.EpisodeID, showID, req.Note)
 			return added, map[string]any{
-				"user_id": uid, "episode_id": req.EpisodeID, "show_id": req.ShowID,
+				"user_id": uid, "episode_id": req.EpisodeID, "show_id": showID,
 			}, err
 		})
 	if err != nil {
@@ -292,9 +340,13 @@ func (a *App) listBookmarks(w http.ResponseWriter, r *http.Request) {
 // --- follows ---
 
 func (a *App) addFollow(w http.ResponseWriter, r *http.Request) {
-	showID := chi.URLParam(r, "showId")
+	showID, err := a.showFor(r.Context(), "show", chi.URLParam(r, "showId"))
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
 	uid := caller(r)
-	err := a.mutate(r.Context(), "user.followed", uid,
+	err = a.mutate(r.Context(), "user.followed", uid,
 		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
 			added, err := a.Store.AddFollow(ctx, tx, uid, showID)
 			return added, map[string]any{"user_id": uid, "show_id": showID}, err

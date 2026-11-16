@@ -156,6 +156,7 @@ services:
       <<: *service-env
       USER_HTTP_ADDR: ":8083"
       USER_DATABASE_URL: postgres://auralis:auralis@postgres:5432/users?sslmode=disable
+      CONTENT_SERVICE_URL: http://content:8082
     ports: ["8083:8083"]
 
   content:

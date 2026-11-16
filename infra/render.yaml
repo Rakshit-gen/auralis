@@ -131,6 +131,8 @@ services:
         value: 0.0.0.0:10000
       - key: USER_DATABASE_URL
         sync: false
+      - key: CONTENT_SERVICE_URL
+        value: https://auralis-content.onrender.com
 
   - type: web
     name: auralis-content
