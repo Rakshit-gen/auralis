@@ -7,6 +7,7 @@ import (
 
 	"github.com/auralis/platform/errcodes"
 	"github.com/auralis/platform/httpx"
+	"github.com/auralis/platform/logging"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -68,7 +69,8 @@ func (a *App) internalCreateShow(w http.ResponseWriter, r *http.Request) {
 		AIGenerated: true,
 	})
 	if err != nil {
-		httpx.Error(w, r, errcodes.Unexpected("could not create show: "+err.Error()))
+		logging.L(ctx).Error("create show failed", "error", err.Error())
+		httpx.Error(w, r, errcodes.Unexpected("could not create show"))
 		return
 	}
 	httpx.JSON(w, http.StatusCreated, sh)
@@ -120,7 +122,8 @@ func (a *App) internalCreateEpisode(w http.ResponseWriter, r *http.Request) {
 		FreePreviewSec: req.FreePreviewSec, Processing: ProcQueued,
 	})
 	if err != nil {
-		httpx.Error(w, r, errcodes.Unexpected("could not create episode: "+err.Error()))
+		logging.L(ctx).Error("create episode failed", "error", err.Error())
+		httpx.Error(w, r, errcodes.Unexpected("could not create episode"))
 		return
 	}
 	if err := a.Store.RefreshEpisodeCount(ctx, req.ShowID); err != nil {

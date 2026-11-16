@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/auralis/platform/authn"
 	"github.com/auralis/platform/errcodes"
 	"github.com/auralis/platform/httpx"
+	"github.com/auralis/platform/logging"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -173,7 +175,7 @@ func (a *App) transition(w http.ResponseWriter, r *http.Request, entityType, ent
 	var cascaded []string
 	if entityType == "show" {
 		if err := a.Store.SetShowStatus(ctx, tx, entityID, from, to); err != nil {
-			httpx.Error(w, r, errcodes.Conflicting(err.Error()))
+			httpx.Error(w, r, statusError(ctx, err))
 			return
 		}
 		showID = entityID
@@ -197,7 +199,7 @@ func (a *App) transition(w http.ResponseWriter, r *http.Request, entityType, ent
 		}
 	} else {
 		if err := a.Store.SetEpisodeStatus(ctx, tx, entityID, from, to); err != nil {
-			httpx.Error(w, r, errcodes.Conflicting(err.Error()))
+			httpx.Error(w, r, statusError(ctx, err))
 			return
 		}
 		e, _ := a.Store.EpisodeByID(ctx, entityID)
@@ -294,4 +296,14 @@ func (a *App) publicationPayload(ctx context.Context, entityType, entityID, show
 		base["is_premium"] = e.IsPremium
 	}
 	return base
+}
+
+// statusError reports a lost status race as a conflict. Anything else is a
+// database failure: it is logged and the client gets a generic message.
+func statusError(ctx context.Context, err error) error {
+	if errors.Is(err, ErrStatusChanged) {
+		return errcodes.Conflicting(err.Error())
+	}
+	logging.L(ctx).Error("status update failed", "error", err.Error())
+	return errcodes.Unexpected("could not update status")
 }

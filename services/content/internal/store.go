@@ -14,6 +14,10 @@ import (
 // ErrNotFound is returned when a lookup matches no row.
 var ErrNotFound = errors.New("not found")
 
+// ErrStatusChanged means a show or episode was not in the status a review
+// transition expected, usually because someone else moved it first.
+var ErrStatusChanged = errors.New("status changed")
+
 // Store is the content database.
 type Store struct{ pool *pgxpool.Pool }
 
@@ -317,7 +321,7 @@ func (s *Store) SetShowStatus(ctx context.Context, tx pgx.Tx, id, from, to strin
 		return err
 	}
 	if ct.RowsAffected() == 0 {
-		return fmt.Errorf("show %s is not in status %q", id, from)
+		return fmt.Errorf("%w: show %s is not in status %q", ErrStatusChanged, id, from)
 	}
 	return nil
 }
@@ -494,7 +498,7 @@ func (s *Store) SetEpisodeStatus(ctx context.Context, tx pgx.Tx, id, from, to st
 		return err
 	}
 	if ct.RowsAffected() == 0 {
-		return fmt.Errorf("episode %s is not in status %q", id, from)
+		return fmt.Errorf("%w: episode %s is not in status %q", ErrStatusChanged, id, from)
 	}
 	return nil
 }
