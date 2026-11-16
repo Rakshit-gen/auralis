@@ -64,24 +64,29 @@ class Pipeline:
         with timed(AI_DURATION, "ai-media", "metadata", self.llm.name):
             meta = await self.llm.generate_metadata(bible, seed, language)
 
-        show = await self.content.post(
-            "/internal/authoring/shows",
-            {
-                "creator_user_id": job.requested_by,
-                "creator_name": "Auralis Studio",
-                "title": bible.concept.title,
-                "synopsis": bible.concept.logline,
-                "description": bible.concept.synopsis,
-                "language_code": language,
-                "tags": meta.tags,
-                "maturity": meta.maturity,
-                "accent_color": meta.accent_color,
-                "is_premium": bool(job.prompt.get("is_premium", False)),
-            },
-            correlation_id=job.id,
-        )
-        show_id = show["id"]
-        job.show_id = show_id
+        # A retry reuses the show an earlier attempt created, and the episodes
+        # it already queued, instead of making them again.
+        show_id = job.show_id
+        if show_id is None:
+            show = await self.content.post(
+                "/internal/authoring/shows",
+                {
+                    "creator_user_id": job.requested_by,
+                    "creator_name": "Auralis Studio",
+                    "title": bible.concept.title,
+                    "synopsis": bible.concept.logline,
+                    "description": bible.concept.synopsis,
+                    "language_code": language,
+                    "tags": meta.tags,
+                    "maturity": meta.maturity,
+                    "accent_color": meta.accent_color,
+                    "is_premium": bool(job.prompt.get("is_premium", False)),
+                },
+                correlation_id=job.id,
+            )
+            show_id = show["id"]
+            job.show_id = show_id
+            await repo.s.commit()  # so a retry knows the show exists
         await repo.save_bible(show_id, bible)
 
         await repo.advance_job(job, "generating_outline", 30)
@@ -89,8 +94,10 @@ class Pipeline:
         with timed(AI_DURATION, "ai-media", "outlines", self.llm.name):
             outlines = await self.llm.generate_outlines(bible, seed, language)
 
-        child_ids: list[str] = []
+        child_ids = await repo.episode_jobs_for(show_id)
         for outline in outlines:
+            if outline.number in child_ids:
+                continue
             episode = await self.content.post(
                 "/internal/authoring/episodes",
                 {
@@ -115,9 +122,10 @@ class Pipeline:
                 episode_number=outline.number,
                 prompt={"outline": outline.model_dump(), "seed": seed, "language": language},
             )
-            child_ids.append(child.id)
+            child_ids[outline.number] = child.id
+            await repo.s.commit()
 
-        job.result = {"show_id": show_id, "episode_jobs": child_ids, "episode_count": len(outlines)}
+        job.result = {"show_id": show_id, "episode_jobs": list(child_ids.values()), "episode_count": len(outlines)}
         await repo.advance_job(job, "completed", 100, f"created show {show_id} with {len(outlines)} episode jobs")
 
     async def run_episode(self, repo: Repo, job: models.GenerationJob) -> None:

@@ -45,6 +45,13 @@ class Repo:
         )
         return (await self.s.execute(stmt)).scalar_one()
 
+    async def episode_jobs_for(self, show_id: str) -> dict[int, str]:
+        """Episode number to job id for the episode jobs already made for a show."""
+        stmt = select(models.GenerationJob.episode_number, models.GenerationJob.id).where(
+            models.GenerationJob.kind == "episode", models.GenerationJob.show_id == show_id
+        )
+        return {n: i for n, i in (await self.s.execute(stmt)).all() if n is not None}
+
     async def next_queued_job(self, stale_before: datetime) -> models.GenerationJob | None:
         """The oldest queued job, or a running one last touched before
         stale_before, whose worker must have died part way through."""

@@ -152,3 +152,48 @@ async def test_abandoned_jobs_are_picked_up_again(engine):
         assert (live.status, live.attempts) == ("synthesizing", 1)  # still running, left alone
         assert (dead.status, dead.attempts) == ("failed", 2)  # rerun, failed on its last attempt
         assert (spent.status, spent.attempts) == ("failed", 2)  # out of attempts, not rerun
+
+
+class _FlakyContent(_FakeContent):
+    """Creates the show, then fails on the second episode the first time."""
+
+    def __init__(self):
+        super().__init__()
+        self.failed = False
+        self.episodes = 0
+
+    async def post(self, path, body, correlation_id=None):
+        if path.endswith("/episodes"):
+            if self.episodes == 1 and not self.failed:
+                self.failed = True
+                raise RuntimeError("content went away")
+            self.episodes += 1
+            self.posts.append(path)
+            return {"id": f"5555555{self.episodes}-0000-0000-0000-000000000000"}
+        return await super().post(path, body, correlation_id)
+
+
+@pytest.mark.asyncio
+async def test_series_retry_does_not_duplicate_the_show(engine):
+    from auralis_ai_media.pipeline.generation import Pipeline
+    from auralis_ai_media.providers.local_llm import LocalLLMProvider
+
+    sm = session_factory(engine)
+    async with sm() as session:
+        job = await Repo(session).create_job(
+            kind="series", status="queued", requested_by=NOBODY, prompt={"brief": "a keeper", "episode_count": 3}
+        )
+        await session.commit()
+        job_id = job.id
+
+    content = _FlakyContent()
+    worker = Worker(engine, Pipeline(LocalLLMProvider(), None, None, content, "/tmp"), max_attempts=3)
+    await worker._run_one()  # fails on episode 2
+    await worker._run_one()  # retry finishes
+
+    assert content.posts.count("/internal/authoring/shows") == 1
+    assert content.posts.count("/internal/authoring/episodes") == 3
+    async with sm() as session:
+        job = await Repo(session).get_job(job_id)
+        assert job.status == "completed", job.error
+        assert len(job.result["episode_jobs"]) == 3
