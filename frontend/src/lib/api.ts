@@ -22,7 +22,9 @@ export function loadTokens(): Tokens | null {
   try {
     const access = localStorage.getItem(ACCESS_KEY);
     const refresh = localStorage.getItem(REFRESH_KEY);
-    return access && refresh ? { access_token: access, refresh_token: refresh } : null;
+    return access && refresh
+      ? { access_token: access, refresh_token: refresh }
+      : null;
   } catch {
     return null;
   }
@@ -50,7 +52,12 @@ export class ApiError extends Error {
   code: string;
   status: number;
   fields?: Record<string, string>;
-  constructor(status: number, code: string, message: string, fields?: Record<string, string>) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    fields?: Record<string, string>,
+  ) {
     super(message);
     this.status = status;
     this.code = code;
@@ -60,31 +67,49 @@ export class ApiError extends Error {
 
 let refreshInFlight: Promise<Tokens | null> | null = null;
 
-async function refreshTokens(): Promise<Tokens | null> {
+// A refresh token works once: the server treats a second use as theft and
+// signs the user out everywhere. Tabs share tokens through localStorage, so
+// a lock makes them refresh one at a time, and a tab that gets the lock after
+// another tab refreshed just picks up the new tokens.
+export async function refreshTokens(): Promise<Tokens | null> {
   const tokens = loadTokens();
   if (!tokens) return null;
   if (!refreshInFlight) {
-    refreshInFlight = fetch(`${API_BASE}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: tokens.refresh_token }),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          clearTokens();
-          return null;
-        }
-        const body = await res.json();
-        const next: Tokens = body.tokens ?? body;
-        saveTokens(next);
-        return next;
-      })
-      .catch(() => null)
-      .finally(() => {
-        refreshInFlight = null;
-      });
+    const locks =
+      typeof navigator !== "undefined" ? navigator.locks : undefined;
+    const run = () => refreshOnce(tokens.refresh_token);
+    // The DOM types give request() a Promise<Promise<T>> here; .then unwraps
+    // the type to match what the browser actually returns.
+    const pending: Promise<Tokens | null> = locks
+      ? locks.request("auralis.refresh", run).then((t) => t)
+      : run();
+    refreshInFlight = pending.finally(() => {
+      refreshInFlight = null;
+    });
   }
   return refreshInFlight;
+}
+
+async function refreshOnce(staleRefresh: string): Promise<Tokens | null> {
+  const current = loadTokens();
+  if (!current) return null;
+  if (current.refresh_token !== staleRefresh) return current; // another tab got there first
+  return fetch(`${API_BASE}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: current.refresh_token }),
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        clearTokens();
+        return null;
+      }
+      const body = await res.json();
+      const next: Tokens = body.tokens ?? body;
+      saveTokens(next);
+      return next;
+    })
+    .catch(() => null);
 }
 
 type RequestOptions = {
@@ -95,7 +120,10 @@ type RequestOptions = {
   query?: Record<string, string | number | boolean | undefined>;
 };
 
-export async function api<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
+export async function api<T = unknown>(
+  path: string,
+  opts: RequestOptions = {},
+): Promise<T> {
   const { method = "GET", body, auth = true, signal, query } = opts;
 
   let url = `${API_BASE}${path}`;
@@ -109,7 +137,9 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
   }
 
   const doFetch = async (token?: string): Promise<Response> => {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
     if (token) headers.Authorization = `Bearer ${token}`;
     return fetch(url, {
       method,
@@ -137,12 +167,22 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
     try {
       payload = JSON.parse(text);
     } catch {
-      payload = { error: { code: "client.bad_response", message: text.slice(0, 200) } };
+      payload = {
+        error: { code: "client.bad_response", message: text.slice(0, 200) },
+      };
     }
   }
 
   if (!res.ok) {
-    const err = (payload as { error?: { code?: string; message?: string; fields?: Record<string, string> } })?.error;
+    const err = (
+      payload as {
+        error?: {
+          code?: string;
+          message?: string;
+          fields?: Record<string, string>;
+        };
+      }
+    )?.error;
     throw new ApiError(
       res.status,
       err?.code ?? "client.error",

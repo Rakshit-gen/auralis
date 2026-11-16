@@ -1,6 +1,6 @@
 "use client";
 
-import { api } from "@/lib/api";
+import { API_BASE, api, loadTokens } from "@/lib/api";
 
 export type PlaybackEventType =
   | "PLAY"
@@ -24,7 +24,13 @@ type QueuedEvent = {
   occurred_at: string;
 };
 
-const IMMEDIATE: PlaybackEventType[] = ["PLAY", "PAUSE", "COMPLETE", "SEEK", "SKIP"];
+const IMMEDIATE: PlaybackEventType[] = [
+  "PLAY",
+  "PAUSE",
+  "COMPLETE",
+  "SEEK",
+  "SKIP",
+];
 const FLUSH_INTERVAL_MS = 15_000;
 
 /**
@@ -58,19 +64,23 @@ class PlaybackEventBatcher {
     if (document.visibilityState === "hidden") void this.flush();
   };
 
+  // On unload. sendBeacon can't send an Authorization header, so the gateway
+  // turned every beacon away; a keepalive fetch can, and still outlives the
+  // page. Nothing can be retried after this, so failures are dropped.
   private flushSync = () => {
     if (!this.buffer.length) return;
     const events = this.buffer.splice(0);
-    const base = process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") || "/api";
-    // Send as an application/json Blob; a bare string posts as text/plain and
-    // the gateway rejects it.
-    const body = new Blob([JSON.stringify({ events })], { type: "application/json" });
-    try {
-      const ok = navigator.sendBeacon?.(`${base}/playback/events`, body);
-      if (!ok) this.buffer.unshift(...events);
-    } catch {
-      this.buffer.unshift(...events);
-    }
+    const token = loadTokens()?.access_token;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    fetch(`${API_BASE}/playback/events`, {
+      method: "POST",
+      keepalive: true,
+      headers,
+      body: JSON.stringify({ events }),
+    }).catch(() => {});
   };
 
   record(ev: Omit<QueuedEvent, "client_event_id" | "occurred_at">) {
