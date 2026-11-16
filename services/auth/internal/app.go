@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/mail"
@@ -313,6 +314,12 @@ func (a *App) refresh(w http.ResponseWriter, r *http.Request) {
 	rawRefresh, newHash := newOpaqueRefresh()
 	expires := time.Now().Add(a.Tokens.RefreshTTL)
 	if _, err := a.Store.RotateRefresh(ctx, row.ID, user.ID, row.FamilyID, newHash, expires, r.UserAgent(), clientIP(r)); err != nil {
+		if errors.Is(err, ErrTokenReused) {
+			_ = a.Store.RevokeFamily(ctx, row.FamilyID)
+			telemetry.Count(service, "refresh", "reuse_detected")
+			httpx.Error(w, r, errcodes.Unauthed("refresh token has already been used"))
+			return
+		}
 		httpx.Error(w, r, errcodes.Unexpected("could not rotate refresh token"))
 		return
 	}

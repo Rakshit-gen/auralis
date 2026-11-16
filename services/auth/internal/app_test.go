@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"testing"
 )
 
@@ -122,6 +123,36 @@ func TestRefreshRotationAndReuseDetection(t *testing.T) {
 	resp, _ = post(t, srv.URL, "/auth/refresh", map[string]string{"refresh_token": rotated.Tokens.RefreshToken}, nil)
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("family revocation: expected rotated token to be rejected, got %d", resp.StatusCode)
+	}
+}
+
+func TestConcurrentRefreshOnlyOneWins(t *testing.T) {
+	app, _ := newTestApp(t)
+	srv := newServer(app)
+	defer srv.Close()
+
+	token := registerUser(t, srv.URL, "race@example.com").Tokens.RefreshToken
+	const n = 8
+	codes := make(chan int, n)
+	var wg sync.WaitGroup
+	for range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			resp, _ := post(t, srv.URL, "/auth/refresh", map[string]string{"refresh_token": token}, nil)
+			codes <- resp.StatusCode
+		}()
+	}
+	wg.Wait()
+	close(codes)
+	ok := 0
+	for c := range codes {
+		if c == http.StatusOK {
+			ok++
+		}
+	}
+	if ok > 1 {
+		t.Fatalf("%d concurrent refreshes with one token succeeded, want at most 1", ok)
 	}
 }
 

@@ -183,8 +183,13 @@ func (s *Store) RefreshByHash(ctx context.Context, hash string) (RefreshRow, err
 	return r, err
 }
 
+// ErrTokenReused means the token was used or revoked by the time we tried to
+// rotate it, usually by a concurrent refresh with the same token.
+var ErrTokenReused = errors.New("refresh token already used")
+
 // RotateRefresh marks old as used, links it to the replacement, and inserts the
-// new token, all in one transaction.
+// new token, all in one transaction. The used_at guard makes rotation a
+// compare-and-swap, so only one of two concurrent refreshes can win.
 func (s *Store) RotateRefresh(ctx context.Context, oldID, userID, familyID, newHash string, expires time.Time, ua, ip string) (string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -199,10 +204,15 @@ func (s *Store) RotateRefresh(ctx context.Context, oldID, userID, familyID, newH
 		userID, familyID, newHash, expires, ua, ip).Scan(&newID); err != nil {
 		return "", err
 	}
-	if _, err := tx.Exec(ctx,
-		`UPDATE refresh_tokens SET used_at = now(), replaced_by = $2 WHERE id = $1`,
-		oldID, newID); err != nil {
+	ct, err := tx.Exec(ctx,
+		`UPDATE refresh_tokens SET used_at = now(), replaced_by = $2
+		 WHERE id = $1 AND used_at IS NULL AND revoked_at IS NULL`,
+		oldID, newID)
+	if err != nil {
 		return "", err
+	}
+	if ct.RowsAffected() == 0 {
+		return "", ErrTokenReused
 	}
 	return newID, tx.Commit(ctx)
 }
