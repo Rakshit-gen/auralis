@@ -176,3 +176,19 @@ func TestGatewayRateLimit(t *testing.T) {
 		t.Fatalf("expected 3 ok and 3 limited, got %v", codes)
 	}
 }
+
+func TestPlaybackStreamIsPublicButRestOfPlaybackIsNot(t *testing.T) {
+	pb, st := echoBackend()
+	defer pb.Close()
+	gw := httptest.NewServer(newTestGateway(t, map[string]string{"playback": pb.URL}, 1000))
+	defer gw.Close()
+
+	resp, _ := http.Get(gw.URL + "/api/playback/stream/tok/master.m3u8")
+	if resp.StatusCode != http.StatusOK || st.lastPath != "/playback/stream/tok/master.m3u8" {
+		t.Fatalf("stream: status %d path %q", resp.StatusCode, st.lastPath)
+	}
+	resp, _ = http.Get(gw.URL + "/api/playback/continue")
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("continue without a token: expected 401, got %d", resp.StatusCode)
+	}
+}

@@ -141,6 +141,9 @@ func defaultRoutes() []Route {
 		{Prefix: "/api/catalog", Backend: "content", TargetPrefix: "", PublicGET: true},
 		{Prefix: "/api/content", Backend: "content", TargetPrefix: ""},
 		{Prefix: "/api/me", Backend: "user", TargetPrefix: "/me"},
+		// Stream links carry their own signed token; players fetch them
+		// without an Authorization header.
+		{Prefix: "/api/playback/stream", Backend: "playback", TargetPrefix: "/playback/stream", PublicGET: true},
 		{Prefix: "/api/playback", Backend: "playback", TargetPrefix: "/playback"},
 		{Prefix: "/api/recommendations", Backend: "recommendation", TargetPrefix: "/recommendations", PublicGET: true},
 		{Prefix: "/api/generate", Backend: "ai-media", TargetPrefix: "/generate"},
