@@ -17,7 +17,6 @@ import (
 	"github.com/auralis/platform/httpx"
 	"github.com/auralis/platform/logging"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 // Options configure the router.
@@ -35,11 +34,18 @@ type Options struct {
 // health endpoints mounted. Register domain routes on the returned router.
 func New(opts Options, reg *health.Registry) chi.Router {
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
+	if opts.IdentitySecret != "" {
+		r.Use(authn.TrustClientIP(opts.IdentitySecret))
+	}
 	r.Use(httpx.RequestContext(opts.Service))
 	r.Use(httpx.SecurityHeaders)
 	if len(opts.CORSOrigins) > 0 {
 		r.Use(httpx.CORS(opts.CORSOrigins))
+	}
+	// Identity before the limiter, so a request is keyed by a verified user
+	// and not by whatever X-Auralis-User header it brought.
+	if opts.IdentitySecret != "" {
+		r.Use(authn.ServiceMiddleware(opts.IdentitySecret))
 	}
 	if opts.RateLimitRPM > 0 {
 		burst := opts.RateLimitBurst
@@ -47,9 +53,6 @@ func New(opts Options, reg *health.Registry) chi.Router {
 			burst = opts.RateLimitRPM
 		}
 		r.Use(httpx.NewRateLimiter(opts.RateLimitRPM, burst).Middleware)
-	}
-	if opts.IdentitySecret != "" {
-		r.Use(authn.ServiceMiddleware(opts.IdentitySecret))
 	}
 	if reg != nil {
 		reg.Mount(r)

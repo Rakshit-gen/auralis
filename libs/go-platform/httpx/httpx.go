@@ -8,10 +8,10 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/auralis/platform/authn"
 	"github.com/auralis/platform/errcodes"
 	"github.com/auralis/platform/logging"
 	"github.com/auralis/platform/telemetry"
@@ -90,10 +90,9 @@ func chiRoutePattern(r *http.Request) string {
 	return "unknown"
 }
 
+// clientIP is the TCP peer, or the gateway-signed client address once
+// authn.TrustClientIP has run. X-Forwarded-For is never read: anyone can set it.
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.TrimSpace(strings.Split(xff, ",")[0])
-	}
 	// net.SplitHostPort, not strings.Cut on ":", so an IPv6 RemoteAddr
 	// ([2001:db8::1]:54321) yields the address and not "[2001". Otherwise every
 	// IPv6 caller collapses onto one rate-limit bucket and one log "remote".
@@ -244,9 +243,9 @@ func (rl *RateLimiter) Allow(key string) bool {
 // Middleware rejects requests over the limit, keyed by identity or client IP.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		key := r.Header.Get("X-Auralis-User")
-		if key == "" {
-			key = clientIP(r)
+		key := "ip:" + clientIP(r)
+		if id, ok := authn.FromContext(r.Context()); ok {
+			key = "user:" + id.UserID
 		}
 		if !rl.Allow(key) {
 			w.Header().Set("Retry-After", "1")

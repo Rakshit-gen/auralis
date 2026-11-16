@@ -69,3 +69,27 @@ func TestIdentityHeaderRoundTripAndTamper(t *testing.T) {
 		t.Fatal("tampered roles header accepted")
 	}
 }
+
+func TestTrustClientIPOnlyAcceptsSignedAddress(t *testing.T) {
+	var seen string
+	h := TrustClientIP(testSecret)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		seen = r.RemoteAddr
+	}))
+	run := func(hdr map[string]string) string {
+		r, _ := http.NewRequest(http.MethodGet, "/", nil)
+		r.RemoteAddr = "10.0.0.9:443"
+		for k, v := range hdr {
+			r.Header.Set(k, v)
+		}
+		h.ServeHTTP(nil, r)
+		return seen
+	}
+	if got := run(ClientIPHeaders(testSecret, "203.0.113.7")); got != "203.0.113.7:0" {
+		t.Fatalf("signed ip: RemoteAddr = %q", got)
+	}
+	forged := ClientIPHeaders(testSecret, "203.0.113.7")
+	forged["X-Auralis-Client-Ip"] = "198.51.100.1"
+	if got := run(forged); got != "10.0.0.9:443" {
+		t.Fatalf("forged ip: RemoteAddr = %q", got)
+	}
+}

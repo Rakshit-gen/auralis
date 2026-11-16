@@ -12,6 +12,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -124,6 +125,37 @@ func FromHeaders(secret string, h http.Header) (Identity, string, error) {
 		id.Roles = strings.Split(roles, ",")
 	}
 	return id, requestID, nil
+}
+
+// ClientIPHeaders signs the caller address the gateway saw. Services rate
+// limit and log by it instead of X-Forwarded-For, which any caller can set,
+// and every service is reachable without going through the gateway.
+func ClientIPHeaders(secret, ip string) map[string]string {
+	return map[string]string{
+		"X-Auralis-Client-Ip":     ip,
+		"X-Auralis-Client-Ip-Sig": signClientIP(secret, ip),
+	}
+}
+
+func signClientIP(secret, ip string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte("client-ip\n" + ip))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// TrustClientIP sets RemoteAddr to the gateway-signed client address when its
+// signature checks out. Without one, RemoteAddr stays the TCP peer, so callers
+// that skip the gateway can't pick their own rate-limit bucket.
+func TrustClientIP(secret string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip, sig := r.Header.Get("X-Auralis-Client-Ip"), r.Header.Get("X-Auralis-Client-Ip-Sig")
+			if ip != "" && hmac.Equal([]byte(sig), []byte(signClientIP(secret, ip))) {
+				r.RemoteAddr = net.JoinHostPort(ip, "0")
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // WithIdentity stores id on ctx.

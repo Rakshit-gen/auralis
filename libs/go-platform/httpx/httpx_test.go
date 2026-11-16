@@ -16,10 +16,10 @@ func TestClientIPHandlesIPv6RemoteAddr(t *testing.T) {
 		}
 	}
 
-	// X-Forwarded-For still wins and is trimmed to the leftmost hop.
+	// X-Forwarded-For is client-controlled and ignored.
 	r := &http.Request{RemoteAddr: "[2001:db8::1]:1", Header: http.Header{}}
 	r.Header.Set("X-Forwarded-For", "203.0.113.7, 10.0.0.1")
-	if got := clientIP(r); got != "203.0.113.7" {
-		t.Errorf("XFF: got %q, want 203.0.113.7", got)
+	if got := clientIP(r); got != "2001:db8::1" {
+		t.Errorf("XFF: got %q, want the peer 2001:db8::1", got)
 	}
 }
