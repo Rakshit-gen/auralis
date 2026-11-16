@@ -294,4 +294,16 @@ func TestAdminRoleManagement(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("expected 1 roles_changed outbox event, got %d", count)
 	}
+
+	// An admin can't demote or suspend themselves.
+	resp, _ = post(t, srv.URL, "/auth/admin/users/"+admin.User.ID+"/roles",
+		map[string]any{"roles": []string{"USER"}}, identityHeaders(admin.User.ID, "ADMIN"))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("self-demotion: expected 400, got %d", resp.StatusCode)
+	}
+	resp, _ = post(t, srv.URL, "/auth/admin/users/"+admin.User.ID+"/status",
+		map[string]any{"status": "suspended"}, identityHeaders(admin.User.ID, "ADMIN"))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("self-suspension: expected 400, got %d", resp.StatusCode)
+	}
 }

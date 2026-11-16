@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/mail"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -456,6 +457,10 @@ func (a *App) setRoles(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
+	if isSelf(r) && !slices.Contains(roles, authn.RoleAdmin) {
+		httpx.Error(w, r, errcodes.BadRequest("you can't remove your own admin role"))
+		return
+	}
 	a.mutateUser(w, r, "user.roles_changed", func(ctx context.Context, tx pgx.Tx) (User, map[string]any, error) {
 		u, e := a.Store.SetRoles(ctx, tx, chi.URLParam(r, "id"), roles)
 		return u, map[string]any{"user_id": u.ID, "roles": roles}, e
@@ -474,10 +479,21 @@ func (a *App) setStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, errcodes.BadRequest("status must be active or suspended"))
 		return
 	}
+	if isSelf(r) && req.Status != "active" {
+		httpx.Error(w, r, errcodes.BadRequest("you can't suspend your own account"))
+		return
+	}
 	a.mutateUser(w, r, "user.status_changed", func(ctx context.Context, tx pgx.Tx) (User, map[string]any, error) {
 		u, e := a.Store.SetStatus(ctx, tx, chi.URLParam(r, "id"), req.Status)
 		return u, map[string]any{"user_id": u.ID, "status": req.Status}, e
 	})
+}
+
+// isSelf reports whether an admin route targets the caller's own account, so
+// the last admin can't lock everyone out of the admin pages by accident.
+func isSelf(r *http.Request) bool {
+	id, ok := authn.FromContext(r.Context())
+	return ok && id.UserID == chi.URLParam(r, "id")
 }
 
 // mutateUser applies an admin mutation and enqueues its outbox event in a single
