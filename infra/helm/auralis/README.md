@@ -31,8 +31,10 @@ AUTH_BOOTSTRAP_ADMIN_PASSWORD=auralis-admin-pw \
 
 ## Production install
 
-Do not ship the placeholder secrets. Create the two Secrets yourself and tell
-the chart not to:
+Do not ship the placeholder secrets. The services refuse secrets shorter
+than 32 characters, and the change-me placeholders too unless
+ALLOW_DEV_SECRETS is set, which the chart only does while the placeholders are
+in use. Create the two Secrets yourself and tell the chart not to:
 
 ```
 kubectl create namespace auralis

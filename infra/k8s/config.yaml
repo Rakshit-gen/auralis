@@ -43,6 +43,9 @@ stringData:
   JWT_SECRET: "dev-jwt-secret-change-me-0123456789"
   IDENTITY_SECRET: "dev-identity-secret-change-me-0123456789"
   SERVICE_SHARED_TOKEN: "dev-service-token-change-me-0123456789"
+  # Lets the services start on the placeholders above. Leave it out of a
+  # Secret you create yourself: without it they refuse change-me values.
+  ALLOW_DEV_SECRETS: "true"
   ADMIN_EMAIL: "admin@auralis.local"
   ADMIN_PASSWORD: "auralis-admin-pw"
   POSTGRES_USER: "auralis"

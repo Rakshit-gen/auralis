@@ -36,6 +36,10 @@ stringData:
   JWT_SECRET: {{ .Values.secrets.jwtSecret | quote }}
   IDENTITY_SECRET: {{ .Values.secrets.identitySecret | quote }}
   SERVICE_SHARED_TOKEN: {{ .Values.secrets.serviceSharedToken | quote }}
+  {{- if contains "change-me" (cat .Values.secrets.jwtSecret .Values.secrets.identitySecret .Values.secrets.serviceSharedToken) }}
+  # The placeholder secrets are still in use; let the services start on them.
+  ALLOW_DEV_SECRETS: "true"
+  {{- end }}
   ADMIN_EMAIL: {{ .Values.secrets.adminEmail | quote }}
   ADMIN_PASSWORD: {{ .Values.secrets.adminPassword | quote }}
   S3_ACCESS_KEY: {{ .Values.secrets.s3AccessKey | quote }}
