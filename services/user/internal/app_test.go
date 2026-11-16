@@ -132,6 +132,9 @@ func TestRegistrationThenLibraryFlow(t *testing.T) {
 
 	// Free plan by default.
 	resp, data = req(t, "GET", srv.URL+"/me/entitlement", nil, hdr(user, "USER"))
+	if resp.StatusCode != 200 {
+		t.Fatalf("get entitlement: %d %s", resp.StatusCode, data)
+	}
 	var ent map[string]any
 	_ = json.Unmarshal(data, &ent)
 	if ent["plan"] != "free" || ent["premium_active"] != false {
@@ -166,6 +169,9 @@ func TestRegistrationThenLibraryFlow(t *testing.T) {
 		t.Fatalf("add like: %d", resp.StatusCode)
 	}
 	resp, data = req(t, "GET", srv.URL+"/me/likes", nil, hdr(user, "USER"))
+	if resp.StatusCode != 200 {
+		t.Fatalf("get likes: %d %s", resp.StatusCode, data)
+	}
 	var likes struct {
 		Likes []Like `json:"likes"`
 	}
@@ -192,6 +198,9 @@ func TestRegistrationThenLibraryFlow(t *testing.T) {
 	})))
 
 	resp, data = req(t, "GET", srv.URL+"/me/history", nil, hdr(user, "USER"))
+	if resp.StatusCode != 200 {
+		t.Fatalf("get history: %d %s", resp.StatusCode, data)
+	}
 	var hist struct {
 		History []HistoryEntry `json:"history"`
 	}
