@@ -16,9 +16,9 @@ type uploadURLReq struct {
 	SizeBytes   int64  `json:"size_bytes"`
 }
 
-// allowedUploadTypes are the source audio formats a creator may upload. The
-// real content type is verified from the object's metadata on confirm, and the
-// ai-media worker re-checks magic bytes and codec before packaging.
+// allowedUploadTypes are the source audio formats a creator may upload. On
+// confirm the stored object has to match the declared type and size limit.
+// The ai-media worker then probes it with ffprobe before packaging.
 var allowedUploadTypes = map[string]string{
 	"audio/mpeg":  "mp3",
 	"audio/mp4":   "m4a",
@@ -86,19 +86,22 @@ func (a *App) confirmUpload(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	episodeID, key, err := a.Store.PendingUpload(r.Context(), req.UploadID)
+	episodeID, key, declaredType, err := a.Store.PendingUpload(r.Context(), req.UploadID)
 	if err != nil || episodeID != e.ID {
 		httpx.Error(w, r, errcodes.Missing("upload not found or already confirmed"))
 		return
 	}
 
-	size, _, err := a.Objects.Stat(r.Context(), key)
+	size, storedType, err := a.Objects.Stat(r.Context(), key)
 	if err != nil {
 		httpx.Error(w, r, errcodes.BadRequest("uploaded object not found in storage"))
 		return
 	}
-	if size < 1024 {
-		httpx.Error(w, r, errcodes.BadRequest("uploaded object is too small to be audio"))
+	if msg := a.checkUpload(size, storedType, declaredType); msg != "" {
+		// Don't keep what was rejected, and don't let it be confirmed later.
+		_ = a.Objects.Remove(r.Context(), key)
+		_ = a.Store.RejectUpload(r.Context(), req.UploadID)
+		httpx.Error(w, r, errcodes.BadRequest(msg))
 		return
 	}
 
@@ -132,4 +135,22 @@ func (a *App) confirmUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	metric("audio_uploaded", "success")
 	httpx.JSON(w, http.StatusAccepted, map[string]any{"episode_id": e.ID, "processing": ProcQueued})
+}
+
+// checkUpload returns why a stored upload is unacceptable, or "".
+func (a *App) checkUpload(size int64, storedType, declaredType string) string {
+	switch {
+	case size < 1024:
+		return "uploaded object is too small to be audio"
+	case size > a.MaxUploadMB*1024*1024:
+		return fmt.Sprintf("uploaded object is larger than %d MB", a.MaxUploadMB)
+	case baseType(storedType) != baseType(declaredType):
+		return "uploaded object's content type does not match the one requested"
+	}
+	return ""
+}
+
+func baseType(ct string) string {
+	t, _, _ := strings.Cut(ct, ";")
+	return strings.ToLower(strings.TrimSpace(t))
 }

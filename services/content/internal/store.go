@@ -650,16 +650,23 @@ func (s *Store) CreateUpload(ctx context.Context, episodeID, key, contentType st
 	return id, err
 }
 
-// PendingUpload returns the episode id and object key for an upload that is
-// still awaiting confirmation.
-func (s *Store) PendingUpload(ctx context.Context, uploadID string) (episodeID, key string, err error) {
+// PendingUpload returns the episode id, object key and declared content type
+// for an upload that is still awaiting confirmation.
+func (s *Store) PendingUpload(ctx context.Context, uploadID string) (episodeID, key, contentType string, err error) {
 	err = s.pool.QueryRow(ctx,
-		`SELECT episode_id, object_key FROM media_uploads WHERE id = $1 AND status = 'pending'`,
-		uploadID).Scan(&episodeID, &key)
+		`SELECT episode_id, object_key, content_type FROM media_uploads WHERE id = $1 AND status = 'pending'`,
+		uploadID).Scan(&episodeID, &key, &contentType)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", ErrNotFound
+		return "", "", "", ErrNotFound
 	}
-	return episodeID, key, err
+	return episodeID, key, contentType, err
+}
+
+// RejectUpload marks a pending upload rejected so it can't be confirmed.
+func (s *Store) RejectUpload(ctx context.Context, uploadID string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE media_uploads SET status = 'rejected' WHERE id = $1 AND status = 'pending'`, uploadID)
+	return err
 }
 
 // ConfirmUpload marks a pending upload confirmed, recording its real object
