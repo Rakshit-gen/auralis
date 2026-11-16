@@ -122,6 +122,12 @@ func (p *Producer) PublishBatch(ctx context.Context, rows []OutboxRow) error {
 	return nil
 }
 
+// PublishRaw sends bytes that are not a valid envelope, such as a corrupt
+// outbox row, to a dead-letter topic so they are kept for inspection.
+func (p *Producer) PublishRaw(ctx context.Context, topic, key string, value []byte) error {
+	return p.w.WriteMessages(ctx, kafka.Message{Topic: topic, Key: []byte(key), Value: value})
+}
+
 func (p *Producer) Close() error { return p.w.Close() }
 
 // Handler processes a single event. Returning a non-nil error triggers retry and

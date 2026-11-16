@@ -41,10 +41,16 @@ func Enqueue(ctx context.Context, tx pgx.Tx, topic, partitionKey string, env env
 	return err
 }
 
+// publisher is the part of kafkax.Producer the relay uses.
+type publisher interface {
+	PublishBatch(ctx context.Context, rows []kafkax.OutboxRow) error
+	PublishRaw(ctx context.Context, topic, key string, value []byte) error
+}
+
 // Relay drains the outbox to Kafka on an interval.
 type Relay struct {
 	pool     *pgxpool.Pool
-	producer *kafkax.Producer
+	producer publisher
 	interval time.Duration
 	batch    int
 	service  string
@@ -118,7 +124,13 @@ func (r *Relay) drainBatch(ctx context.Context) (int, error) {
 		key   string
 		env   envelope.Envelope
 	}
+	type bad struct {
+		item
+		raw []byte
+		err error
+	}
 	var items []item
+	var bads []bad
 	for rows.Next() {
 		var it item
 		var raw []byte
@@ -128,8 +140,8 @@ func (r *Relay) drainBatch(ctx context.Context) (int, error) {
 		}
 		env, perr := envelope.Parse(raw)
 		if perr != nil {
-			rows.Close()
-			return 0, perr
+			bads = append(bads, bad{it, raw, perr})
+			continue
 		}
 		it.env = env
 		items = append(items, it)
@@ -138,15 +150,27 @@ func (r *Relay) drainBatch(ctx context.Context) (int, error) {
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
-	if len(items) == 0 {
+	if len(items) == 0 && len(bads) == 0 {
 		return 0, nil
 	}
 
+	// A row that isn't a valid envelope would fail every batch it is in and
+	// stop the relay for good. Send it to the dead-letter topic as it is and
+	// count it as handled, so the events behind it still go out.
+	ids := make([]int64, 0, len(items)+len(bads))
+	for _, b := range bads {
+		logging.L(ctx).Error("outbox row is not a valid envelope, dead-lettering it",
+			"service", r.service, "id", b.id, "topic", b.topic, "error", b.err.Error())
+		if err := r.producer.PublishRaw(ctx, b.topic+kafkax.DeadLetterSuffix, b.key, b.raw); err != nil {
+			return 0, err
+		}
+		ids = append(ids, b.id)
+	}
+
 	rowsToPublish := make([]kafkax.OutboxRow, len(items))
-	ids := make([]int64, len(items))
 	for i, it := range items {
 		rowsToPublish[i] = kafkax.OutboxRow{Topic: it.topic, Key: it.key, Env: it.env}
-		ids[i] = it.id
+		ids = append(ids, it.id)
 	}
 	// One batched produce request for the whole batch. On error nothing is
 	// marked published; the rows are retried next tick and consumers dedupe on
