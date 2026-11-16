@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Hls from "hls.js";
+import { API_BASE } from "@/lib/api";
 import { usePlayer } from "@/stores/player";
 
 /**
@@ -25,11 +26,11 @@ export function AudioEngine() {
   const clearSeek = usePlayer((s) => s.clearSeek);
   const setPlaying = usePlayer((s) => s.setPlaying);
 
-  // Load a new source when the authorization (and therefore the signed URL) changes.
+  // Load a new source when the authorization (and therefore the signed link) changes.
   useEffect(() => {
     const el = ref.current;
     if (!el || !authorization) return;
-    const src = authorization.hls_master_url;
+    const src = `${API_BASE}${authorization.hls_master_url}`;
 
     hlsRef.current?.destroy();
     hlsRef.current = null;

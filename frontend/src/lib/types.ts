@@ -69,8 +69,8 @@ export type AuthorizeResponse = {
     duration_sec: number;
     is_premium: boolean;
   };
+  /** Path under the API base, e.g. /playback/stream/<token>/master.m3u8. */
   hls_master_url: string;
-  variants: { bitrate_kbps: number; codec: string; url: string }[];
   resume_position_sec: number;
   preview_only: boolean;
   preview_limit_sec: number;
