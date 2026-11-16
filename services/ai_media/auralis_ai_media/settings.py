@@ -30,6 +30,9 @@ class Settings(BaseServiceSettings):
     ai_media_run_worker: bool = True
     ai_media_work_dir: str = "/tmp/auralis-media"
     ai_media_max_attempts: int = 3
+    # Series a creator may start per day. Each one is several LLM calls and
+    # TTS for every episode; admins are exempt.
+    ai_media_series_per_day: int = 3
 
     @property
     def port(self) -> int:

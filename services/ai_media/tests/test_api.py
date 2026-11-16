@@ -83,3 +83,12 @@ async def test_episodes_only_for_your_own_show(client):
     assert (await client.get(f"/generate/jobs/{job_id}", headers=as_user(OTHER, "CREATOR"))).status_code == 404
     assert (await client.get(f"/generate/jobs/{job_id}", headers=as_user(OTHER, "ADMIN"))).status_code == 200
     assert (await client.get("/generate/jobs/not-a-uuid", headers=as_user(OWNER, "CREATOR"))).status_code == 404
+
+
+async def test_series_per_day_cap(client):
+    brief = {"brief": "a lighthouse keeper"}
+    for _ in range(3):
+        assert (await client.post("/generate/series", json=brief, headers=as_user(OTHER, "CREATOR"))).status_code == 202
+    r = await client.post("/generate/series", json=brief, headers=as_user(OTHER, "CREATOR"))
+    assert r.status_code == 429
+    assert (await client.post("/generate/series", json=brief, headers=as_user(OTHER, "ADMIN"))).status_code == 202

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +36,14 @@ class Repo:
             .limit(1)
         )
         return (await self.s.execute(stmt)).scalar_one_or_none()
+
+    async def series_started_since(self, user_id: str, since: datetime) -> int:
+        stmt = select(func.count()).where(
+            models.GenerationJob.kind == "series",
+            models.GenerationJob.requested_by == user_id,
+            models.GenerationJob.created_at >= since,
+        )
+        return (await self.s.execute(stmt)).scalar_one()
 
     async def next_queued_job(self) -> models.GenerationJob | None:
         stmt = (

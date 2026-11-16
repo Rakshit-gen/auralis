@@ -4,11 +4,13 @@ queued; no generation, TTS, or FFmpeg work happens in a request handler."""
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from auralis_common.errors import ApiError
 from auralis_common.identity import Identity, require_identity, require_roles
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from auralis_ai_media.repo import Repo
@@ -36,7 +38,7 @@ def creator(identity: Identity = Depends(require_identity)) -> Identity:
     return identity
 
 
-def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
+def build_router(sessionmaker: async_sessionmaker, series_per_day: int = 3) -> APIRouter:
     router = APIRouter()
 
     async def repo_dep():
@@ -50,6 +52,14 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
         rs=Depends(repo_dep),
     ):
         repo, session = rs
+        if not identity.has_role("ADMIN"):
+            # Serialise one user's requests so two at once can't both pass the count.
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": "series:" + identity.user_id}
+            )
+            started = await repo.series_started_since(identity.user_id, datetime.now(UTC) - timedelta(days=1))
+            if started >= series_per_day:
+                raise ApiError(429, "request.rate_limited", f"at most {series_per_day} series a day; try again later")
         job = await repo.create_job(
             kind="series",
             status="queued",
