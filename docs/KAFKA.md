@@ -24,6 +24,7 @@ consumer, and dead-letter writer:
 | `KAFKA_SASL_PASSWORD` | broker secret | required when a mechanism is set |
 | `KAFKA_TLS_ENABLED` | `1`/`true` | implied whenever a mechanism is set |
 | `KAFKA_TLS_SKIP_VERIFY` | `1`/`true` | skips certificate verification, test only |
+| `KAFKA_AUTO_CREATE_TOPICS` | `1`/`true` | lets the Go producers create missing topics; off by default, on in the compose, k8s and Helm dev setups |
 
 A mechanism set without credentials is a startup error. Managed brokers also
 disable auto topic creation, so create the topics in

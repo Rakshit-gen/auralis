@@ -17,6 +17,9 @@ config:
   corsAllowedOrigins: http://localhost:3000
   redisUrl: redis://redis:6379/0
   aiDefaultProvider: auto
+  # Lets the Go services create missing topics. Fine for the in-cluster
+  # Redpanda; set "false" and pre-create topics on a managed broker.
+  kafkaAutoCreateTopics: "true"
   s3:
     endpoint: minio:9000
     bucket: auralis-media

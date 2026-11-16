@@ -37,6 +37,12 @@ var AllTopics = []string{
 
 func brokers(csv string) []string { return strings.Split(csv, ",") }
 
+// autoCreateTopics reports whether writers may create a missing topic. It is
+// off unless KAFKA_AUTO_CREATE_TOPICS is set, so a mistyped topic name fails
+// loudly instead of quietly creating a topic nobody consumes. The local
+// compose, k8s and Helm setups turn it on.
+func autoCreateTopics() bool { return envBool("KAFKA_AUTO_CREATE_TOPICS") }
+
 // Producer sends envelopes to Kafka. It is safe for concurrent use.
 type Producer struct {
 	w       *kafka.Writer
@@ -51,7 +57,7 @@ func NewProducer(brokerCSV, service string) *Producer {
 			Addr:                   kafka.TCP(brokers(brokerCSV)...),
 			Balancer:               &kafka.Hash{}, // key-based partitioning keeps per-entity order
 			RequiredAcks:           kafka.RequireAll,
-			AllowAutoTopicCreation: true,
+			AllowAutoTopicCreation: autoCreateTopics(),
 			BatchTimeout:           50 * time.Millisecond,
 			WriteTimeout:           10 * time.Second,
 			MaxAttempts:            5,
@@ -188,7 +194,7 @@ func NewConsumer(cfg ConsumerConfig, seen Seen) *Consumer {
 			Addr:                   kafka.TCP(brokers(cfg.BrokerCSV)...),
 			Balancer:               &kafka.Hash{},
 			RequiredAcks:           kafka.RequireAll,
-			AllowAutoTopicCreation: true,
+			AllowAutoTopicCreation: autoCreateTopics(),
 			Transport:              transport(),
 		},
 	}

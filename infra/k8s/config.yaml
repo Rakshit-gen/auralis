@@ -12,6 +12,8 @@ data:
   JWT_ISSUER: "auralis-auth"
   JWT_AUDIENCE: "auralis"
   KAFKA_BROKERS: "redpanda:9092"
+  # In-cluster Redpanda only. Pre-create topics on a managed broker instead.
+  KAFKA_AUTO_CREATE_TOPICS: "true"
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
   CORS_ALLOWED_ORIGINS: "http://localhost:3000"
   # Object storage (in-cluster MinIO by default; point at R2/S3 in prod).
