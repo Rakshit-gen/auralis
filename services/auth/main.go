@@ -69,6 +69,15 @@ func main() {
 	relayCtx, stopRelay := context.WithCancel(ctx)
 	defer stopRelay()
 	go relay.Run(relayCtx)
+	go db.Prune(relayCtx, pool, time.Hour, map[string]string{
+		"outbox_events": outbox.PruneSQL,
+		// Lockout only looks back minutes; a month is kept for looking into abuse.
+		"login_attempts": `DELETE FROM login_attempts WHERE at < now() - interval '30 days'`,
+		// An expired token can't be used, so it can't trip reuse detection either.
+		// With a fixed TTL a token expires before the one that replaced it, so
+		// both go in the same or an earlier pass and replaced_by stays valid.
+		"refresh_tokens": `DELETE FROM refresh_tokens WHERE expires_at < now() - interval '1 day'`,
+	})
 
 	store := internal.NewStore(pool)
 	app := internal.NewApp(store, internal.TokenConfig{
