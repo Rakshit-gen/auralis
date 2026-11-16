@@ -12,7 +12,6 @@ pause after it, and concatenate the segments into one voice track.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import shutil
 import wave
@@ -20,7 +19,7 @@ import wave
 import structlog
 
 from auralis_ai_media.languages import normalize
-from auralis_ai_media.providers.base import GenerationError, TTSResult, TTSSegment
+from auralis_ai_media.providers.base import GenerationError, TTSResult, TTSSegment, run_process
 
 log = structlog.get_logger()
 
@@ -80,17 +79,12 @@ _PIPER_VOICES_BY_LANG: dict[str, dict[str, tuple[str, float]]] = {
 }
 
 
+# One segment is at most 1800 characters; synthesizing it takes seconds.
+TTS_TIMEOUT = 120
+
+
 async def _run(cmd: list[str], *, stdin: bytes | None = None, env: dict[str, str] | None = None) -> None:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdin=asyncio.subprocess.PIPE if stdin is not None else None,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        env=env,
-    )
-    _, stderr = await proc.communicate(stdin)
-    if proc.returncode != 0:
-        raise GenerationError(f"{os.path.basename(cmd[0])} failed: {stderr.decode()[:300]}")
+    await run_process(cmd, limit_sec=TTS_TIMEOUT, stdin=stdin, env=env)
 
 
 def _wav_duration(path: str) -> tuple[float, int, int]:

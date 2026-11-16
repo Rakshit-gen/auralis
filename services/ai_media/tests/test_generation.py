@@ -121,3 +121,11 @@ async def test_piper_tts_when_configured(tmp_path):
     assert result.duration_sec > 1
     assert result.sample_rate == 22050
     assert result.channels == 1
+
+
+@pytest.mark.asyncio
+async def test_stuck_subprocess_is_killed():
+    from auralis_ai_media.providers.base import run_process
+
+    with pytest.raises(GenerationError, match="took longer"):
+        await run_process(["sleep", "30"], limit_sec=0.2)

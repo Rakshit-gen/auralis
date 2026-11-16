@@ -7,7 +7,6 @@ and validates the output before it is handed back.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import os
@@ -17,7 +16,7 @@ import shutil
 import structlog
 from auralis_common.telemetry import FFMPEG_DURATION, timed
 
-from auralis_ai_media.providers.base import GenerationError
+from auralis_ai_media.providers.base import GenerationError, run_process
 
 log = structlog.get_logger()
 
@@ -25,39 +24,30 @@ BITRATES = (64, 128, 256)
 HLS_SEGMENT_SECONDS = 6
 
 
+# Encoding a long episode takes a while; anything past these is stuck.
+FFMPEG_TIMEOUT = 900
+FFPROBE_TIMEOUT = 60
+
+
 async def _ffmpeg(args: list[str]) -> None:
-    proc = await asyncio.create_subprocess_exec(
-        "ffmpeg",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        *args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    _, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        raise GenerationError(f"ffmpeg failed: {stderr.decode()[:400]}")
+    await run_process(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args], limit_sec=FFMPEG_TIMEOUT)
 
 
 async def _ffprobe(path: str) -> dict:
-    proc = await asyncio.create_subprocess_exec(
-        "ffprobe",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        path,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    out = await run_process(
+        [
+            "ffprobe",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            path,
+        ],
+        limit_sec=FFPROBE_TIMEOUT,
     )
-    out, err = await proc.communicate()
-    if proc.returncode != 0:
-        raise GenerationError(f"ffprobe failed: {err.decode()[:200]}")
     return json.loads(out)
 
 
