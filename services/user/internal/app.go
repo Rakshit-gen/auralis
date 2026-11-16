@@ -380,11 +380,14 @@ func (a *App) redeemPromo(w http.ResponseWriter, r *http.Request) {
 			}, nil
 		})
 	if err != nil {
-		if err == ErrNotFound {
+		switch {
+		case errors.Is(err, ErrNotFound):
 			httpx.Error(w, r, errcodes.Missing("unknown promo code"))
-			return
+		case errors.Is(err, ErrPromoUnavailable), errors.Is(err, ErrPromoRedeemed):
+			httpx.Error(w, r, errcodes.BadRequest(err.Error()))
+		default:
+			httpx.Error(w, r, errcodes.Unexpected("could not redeem promo code"))
 		}
-		httpx.Error(w, r, errcodes.BadRequest(err.Error()))
 		return
 	}
 	telemetry.Count(service, "promo_redeem", "success")

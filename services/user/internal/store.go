@@ -351,6 +351,12 @@ func (s *Store) SetEntitlement(ctx context.Context, tx pgx.Tx, userID, plan, sou
 // RedeemPromo applies a promo code to a user, enforcing the per-user and global
 // redemption limits. It runs inside the caller's transaction so the redemption
 // and the user.entitlement_changed event commit together.
+// Reasons a promo code can't be redeemed that are safe to tell the caller.
+var (
+	ErrPromoUnavailable = errors.New("promo code is no longer available")
+	ErrPromoRedeemed    = errors.New("you have already redeemed this code")
+)
+
 func (s *Store) RedeemPromo(ctx context.Context, tx pgx.Tx, userID, code string) (Entitlement, error) {
 	var plan string
 	var durationDays, maxR, redeemed int
@@ -366,7 +372,7 @@ func (s *Store) RedeemPromo(ctx context.Context, tx pgx.Tx, userID, code string)
 		return Entitlement{}, err
 	}
 	if !active || redeemed >= maxR {
-		return Entitlement{}, errors.New("promo code is no longer available")
+		return Entitlement{}, ErrPromoUnavailable
 	}
 
 	ct, err := tx.Exec(ctx,
@@ -375,7 +381,7 @@ func (s *Store) RedeemPromo(ctx context.Context, tx pgx.Tx, userID, code string)
 		return Entitlement{}, err
 	}
 	if ct.RowsAffected() == 0 {
-		return Entitlement{}, errors.New("you have already redeemed this code")
+		return Entitlement{}, ErrPromoRedeemed
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE promo_codes SET redeemed_count = redeemed_count + 1 WHERE code = $1`, code); err != nil {
