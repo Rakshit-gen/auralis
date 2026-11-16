@@ -33,6 +33,9 @@ const (
 	displayMaxCh = 60
 )
 
+// dummyHash is compared against when a login names an unknown email.
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("not-a-real-password"), bcryptCost)
+
 // App holds the auth service dependencies and HTTP handlers.
 type App struct {
 	Store  *Store
@@ -257,7 +260,13 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := a.Store.UserByEmailNorm(ctx, norm)
-	if err != nil || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
+	hash := []byte(user.PasswordHash)
+	if err != nil {
+		// Compare against a throwaway hash so an unknown email costs the same
+		// bcrypt time as a wrong password and the timing doesn't say which.
+		hash = dummyHash
+	}
+	if bcrypt.CompareHashAndPassword(hash, []byte(req.Password)) != nil || err != nil {
 		_ = a.Store.RecordLoginAttempt(ctx, norm, ip, false)
 		telemetry.Count(service, "login", "failure")
 		httpx.Error(w, r, errcodes.Unauthed("email or password is incorrect"))
