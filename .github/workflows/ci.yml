@@ -134,13 +134,14 @@ jobs:
           pip install -e libs/py-common -e "services/ai_media[dev]" -e "services/recommendation[dev]"
       - name: Create test databases
         run: |
-          for db in ai_media_dev recommendation_test; do PGPASSWORD=auralis createdb -h localhost -U auralis "$db"; done
+          for db in ai_media_test recommendation_test; do PGPASSWORD=auralis createdb -h localhost -U auralis "$db"; done
       - name: Lint
         run: |
           ruff check libs/py-common services/ai_media services/recommendation scripts
           ruff format --check libs/py-common services/ai_media services/recommendation
       - name: Test
         env:
+          AI_MEDIA_TEST_DATABASE_URL: postgresql://auralis:auralis@localhost:5432/ai_media_test
           RECOMMENDATION_TEST_DATABASE_URL: postgresql://auralis:auralis@localhost:5432/recommendation_test
         run: |
           (cd services/ai_media && pytest -q)
