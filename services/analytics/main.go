@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/auralis/analytics/internal"
 	"github.com/auralis/analytics/migrations"
@@ -58,6 +59,11 @@ func main() {
 	}
 
 	bgCtx, stopBg := context.WithCancel(ctx)
+	// Dedupe records only matter while Kafka could still redeliver the event,
+	// and Kafka keeps messages for a week by default.
+	go db.Prune(bgCtx, pool, time.Hour, map[string]string{
+		"processed_events": `DELETE FROM processed_events WHERE handled_at < now() - interval '14 days'`,
+	})
 	defer stopBg()
 
 	if runConsumer {

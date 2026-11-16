@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/auralis/content/internal"
 	"github.com/auralis/content/migrations"
@@ -81,6 +82,12 @@ func main() {
 	relayCtx, stopRelay := context.WithCancel(ctx)
 	defer stopRelay()
 	go outbox.NewRelay(pool, producer, "content").Run(relayCtx)
+	// Dedupe records only matter while Kafka could still redeliver the event,
+	// and Kafka keeps messages for a week by default.
+	go db.Prune(relayCtx, pool, time.Hour, map[string]string{
+		"outbox_events":    outbox.PruneSQL,
+		"processed_events": `DELETE FROM processed_events WHERE handled_at < now() - interval '14 days'`,
+	})
 
 	app := internal.NewApp(internal.NewStore(pool), objects, serviceToken)
 
