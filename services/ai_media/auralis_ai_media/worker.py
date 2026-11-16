@@ -7,6 +7,7 @@ worker; scale by running more worker replicas.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from auralis_common.db import session_factory
@@ -20,8 +21,18 @@ log = structlog.get_logger()
 
 
 class Worker:
-    def __init__(self, engine, pipeline: Pipeline, max_attempts: int, poll_interval: float = 2.0):
+    def __init__(
+        self,
+        engine,
+        pipeline: Pipeline,
+        max_attempts: int,
+        poll_interval: float = 2.0,
+        stale_after: timedelta = timedelta(hours=2),
+    ):
         self._factory = session_factory(engine)
+        # A job's row is only written when it is claimed and when it ends, so
+        # one that is still "running" this long after its claim lost its worker.
+        self._stale_after = stale_after
         self._pipeline = pipeline
         self._max_attempts = max_attempts
         self._poll = poll_interval
@@ -44,10 +55,16 @@ class Worker:
     async def _run_one(self) -> bool:
         async with self._factory() as session:
             repo = Repo(session)
-            job = await repo.next_queued_job()
+            job = await repo.next_queued_job(datetime.now(UTC) - self._stale_after)
             if job is None:
                 await session.rollback()
                 return False
+            if job.status != "queued":
+                log.warning("reclaiming abandoned job", job_id=job.id, status=job.status, attempts=job.attempts)
+                if job.attempts >= self._max_attempts:
+                    await repo.fail_job(job, "the worker stopped part way through too many times")
+                    await session.commit()
+                    return True
             job.status = "generating_bible" if job.kind == "series" else "generating_script"
             job.attempts += 1
             job_id, kind, attempts = job.id, job.kind, job.attempts

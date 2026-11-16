@@ -31,6 +31,9 @@ async def engine():
     return eng
 
 
+NOBODY = "00000000-0000-0000-0000-000000000000"
+
+
 class AlwaysFailsPipeline:
     async def run_episode(self, repo, job):
         raise RuntimeError("generation exploded")
@@ -121,3 +124,31 @@ async def test_run_episode_resolves_outline_and_creates_episode(engine):
 
         assert str(job.episode_id) == "22222222-2222-2222-2222-222222222222"
         assert "/internal/authoring/episodes" in content.posts
+
+
+@pytest.mark.asyncio
+async def test_abandoned_jobs_are_picked_up_again(engine):
+    sm = session_factory(engine)
+    async with sm() as session:
+        repo = Repo(session)
+        live = await repo.create_job(kind="episode", status="synthesizing", requested_by=NOBODY, attempts=1)
+        dead = await repo.create_job(kind="episode", status="synthesizing", requested_by=NOBODY, attempts=1)
+        spent = await repo.create_job(kind="episode", status="synthesizing", requested_by=NOBODY, attempts=2)
+        await session.commit()
+        await session.execute(
+            text("UPDATE generation_jobs SET updated_at = now() - interval '3 hours' WHERE id IN (:a, :b)"),
+            {"a": dead.id, "b": spent.id},
+        )
+        await session.commit()
+        ids = live.id, dead.id, spent.id
+
+    worker = Worker(engine, AlwaysFailsPipeline(), max_attempts=2)
+    while await worker._run_one():
+        pass
+
+    async with sm() as session:
+        repo = Repo(session)
+        live, dead, spent = [await repo.get_job(i) for i in ids]
+        assert (live.status, live.attempts) == ("synthesizing", 1)  # still running, left alone
+        assert (dead.status, dead.attempts) == ("failed", 2)  # rerun, failed on its last attempt
+        assert (spent.status, spent.attempts) == ("failed", 2)  # out of attempts, not rerun

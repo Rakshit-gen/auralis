@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,10 +45,18 @@ class Repo:
         )
         return (await self.s.execute(stmt)).scalar_one()
 
-    async def next_queued_job(self) -> models.GenerationJob | None:
+    async def next_queued_job(self, stale_before: datetime) -> models.GenerationJob | None:
+        """The oldest queued job, or a running one last touched before
+        stale_before, whose worker must have died part way through."""
+        job = models.GenerationJob
         stmt = (
-            select(models.GenerationJob)
-            .where(models.GenerationJob.status.in_(("queued",)))
+            select(job)
+            .where(
+                or_(
+                    job.status == "queued",
+                    and_(job.status.not_in(("completed", "failed")), job.updated_at < stale_before),
+                )
+            )
             .order_by(models.GenerationJob.created_at)
             .limit(1)
             .with_for_update(skip_locked=True)
