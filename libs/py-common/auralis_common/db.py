@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import structlog
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -71,7 +74,34 @@ async def session_scope(
 
 
 async def ping(engine: AsyncEngine) -> None:
-    from sqlalchemy import text
-
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
+
+
+# Same window the Go services keep their dedupe records for.
+PRUNE_PROCESSED_EVENTS = "DELETE FROM processed_events WHERE handled_at < now() - interval '14 days'"
+
+
+async def prune_once(engine: AsyncEngine, stmts: dict[str, str]) -> dict[str, int]:
+    """Run each DELETE once and return rows removed per table. A failure is
+    logged and the other statements still run."""
+    log = structlog.get_logger().bind(component="prune")
+    removed: dict[str, int] = {}
+    for name, sql in stmts.items():
+        try:
+            async with engine.begin() as conn:
+                removed[name] = (await conn.execute(text(sql))).rowcount
+        except Exception as e:
+            log.warning("prune failed", table=name, error=str(e))
+            continue
+        if removed[name]:
+            log.info("pruned old rows", table=name, rows=removed[name])
+    return removed
+
+
+async def prune_forever(engine: AsyncEngine, stmts: dict[str, str], every_sec: float = 3600) -> None:
+    """prune_once now and then every every_sec, for tables that only grow,
+    like the processed_events dedupe ledger. Mirrors the Go db.Prune."""
+    while True:
+        await prune_once(engine, stmts)
+        await asyncio.sleep(every_sec)

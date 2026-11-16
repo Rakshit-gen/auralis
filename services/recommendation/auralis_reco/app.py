@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 
 import structlog
-from auralis_common.db import make_engine, ping, session_factory
+from auralis_common.db import PRUNE_PROCESSED_EVENTS, make_engine, ping, prune_forever, session_factory
 from auralis_common.kafka import TOPIC_CONTENT, TOPIC_PLAYBACK, TOPIC_USER, Consumer
 from auralis_common.logging import setup_logging
 from auralis_common.service import create_app
@@ -49,6 +49,7 @@ def create_api():
     async def _startup() -> None:
         if settings.recommendation_run_consumer:
             tasks.append(asyncio.create_task(consumer.run(handler.handle)))
+            tasks.append(asyncio.create_task(prune_forever(engine, {"processed_events": PRUNE_PROCESSED_EVENTS})))
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:

@@ -77,3 +77,20 @@ async def test_claim_and_job_commit_together(sm):
     await handler.handle(ev)
     await handler.handle(ev)  # duplicate delivery
     assert await job_count() == 1
+
+
+@pytest.mark.asyncio
+async def test_prune_drops_only_old_processed_events(sm):
+    from auralis_common.db import PRUNE_PROCESSED_EVENTS, prune_once
+
+    async with sm() as s, s.begin():
+        await s.execute(
+            text(
+                "INSERT INTO processed_events (consumer, event_id, handled_at) VALUES "
+                "('c', gen_random_uuid(), now() - interval '15 days'), ('c', gen_random_uuid(), now())"
+            )
+        )
+    engine = sm.kw["bind"]
+    assert await prune_once(engine, {"processed_events": PRUNE_PROCESSED_EVENTS}) == {"processed_events": 1}
+    async with sm() as s:
+        assert (await s.execute(text("SELECT count(*) FROM processed_events"))).scalar() == 1
