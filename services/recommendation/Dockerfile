@@ -9,5 +9,8 @@ COPY services/recommendation /app/services/recommendation
 RUN pip install ./libs/py-common ./services/recommendation
 
 WORKDIR /app/services/recommendation
+# Run as an unprivileged user, not root.
+RUN useradd --system --uid 10001 --no-create-home app
+USER 10001
 EXPOSE 8086
 ENTRYPOINT ["python", "-m", "auralis_reco"]

@@ -33,6 +33,9 @@ COPY services/ai_media /app/services/ai_media
 RUN pip install ./libs/py-common ./services/ai_media
 
 WORKDIR /app/services/ai_media
+# Run as an unprivileged user, not root.
+RUN useradd --system --uid 10001 --no-create-home app
+USER 10001
 EXPOSE 8085
 # Default to the API; the worker runs as a second command in compose/k8s.
 ENTRYPOINT ["python", "-m", "auralis_ai_media"]
