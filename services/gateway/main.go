@@ -68,12 +68,11 @@ func main() {
 		}
 		rdb = redis.NewClient(opt)
 		if err := rdb.Ping(ctx).Err(); err != nil {
-			log.Warn("redis unreachable, falling back to in-memory rate limiting", "error", err.Error())
-			limiter = internal.NewMemoryLimiter()
-		} else {
-			limiter = internal.NewRedisLimiter(rdb)
-			log.Info("using redis-backed rate limiter")
+			// Still use Redis: the limiter counts per instance until it is reachable.
+			log.Warn("redis unreachable at startup, limiting per instance until it is", "error", err.Error())
 		}
+		limiter = internal.NewRedisLimiter(rdb)
+		log.Info("using redis-backed rate limiter")
 	} else {
 		limiter = internal.NewMemoryLimiter()
 	}

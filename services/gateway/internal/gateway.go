@@ -207,16 +207,15 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if g.limiter != nil {
 		allow, remaining, err := g.limiter.Allow(ctx, limitKey, g.rateLimit, g.rateWindow)
 		if err != nil {
-			logging.L(ctx).Warn("rate limiter error, allowing request", "error", err.Error())
-		} else {
-			w.Header().Set("X-RateLimit-Remaining", itoa(remaining))
-			if !allow {
-				telemetry.Count("gateway", "rate_limit", "blocked")
-				w.Header().Set("Retry-After", "1")
-				errcodes.Write(w, reqID, errcodes.New(http.StatusTooManyRequests, errcodes.RateLimited,
-					"rate limit exceeded"))
-				return
-			}
+			logging.L(ctx).Warn("shared rate limiter unavailable, limiting per instance", "error", err.Error())
+		}
+		w.Header().Set("X-RateLimit-Remaining", itoa(remaining))
+		if !allow {
+			telemetry.Count("gateway", "rate_limit", "blocked")
+			w.Header().Set("Retry-After", "1")
+			errcodes.Write(w, reqID, errcodes.New(http.StatusTooManyRequests, errcodes.RateLimited,
+				"rate limit exceeded"))
+			return
 		}
 	}
 

@@ -46,18 +46,36 @@ func itoa(n int) string { return strconv.Itoa(n) }
 // RedisLimiter is a fixed-window counter in Redis shared across gateway
 // instances. A window is a key that expires after the window duration; the
 // first request in a window sets the TTL.
-type RedisLimiter struct{ rdb *redis.Client }
+//
+// When Redis can't be reached it counts in memory instead, so each instance
+// still enforces the limit on its own rather than letting everything through.
+// The client reconnects by itself, so Redis is used again once it is back.
+type RedisLimiter struct {
+	rdb      *redis.Client
+	fallback *MemoryLimiter
+}
 
-func NewRedisLimiter(rdb *redis.Client) *RedisLimiter { return &RedisLimiter{rdb: rdb} }
+func NewRedisLimiter(rdb *redis.Client) *RedisLimiter {
+	return &RedisLimiter{rdb: rdb, fallback: NewMemoryLimiter()}
+}
 
+// redisTimeout keeps a Redis outage from stalling every request for the
+// client's dial timeout. A healthy INCR takes a millisecond or two.
+const redisTimeout = 250 * time.Millisecond
+
+// Allow returns the fallback's verdict along with the Redis error when Redis
+// fails; the verdict is always meant to be enforced.
 func (l *RedisLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration) (bool, int, error) {
 	bucket := time.Now().Truncate(window).Unix()
 	rk := "rl:" + key + ":" + strconv.FormatInt(bucket, 10)
+	rctx, cancel := context.WithTimeout(ctx, redisTimeout)
+	defer cancel()
 	pipe := l.rdb.TxPipeline()
-	incr := pipe.Incr(ctx, rk)
-	pipe.Expire(ctx, rk, window+time.Second)
-	if _, err := pipe.Exec(ctx); err != nil {
-		return true, limit, err // fail open
+	incr := pipe.Incr(rctx, rk)
+	pipe.Expire(rctx, rk, window+time.Second)
+	if _, err := pipe.Exec(rctx); err != nil {
+		ok, remaining, _ := l.fallback.Allow(ctx, key, limit, window)
+		return ok, remaining, err
 	}
 	count := int(incr.Val())
 	remaining := limit - count
