@@ -257,7 +257,7 @@ class Pipeline:
         try:
             self.store._client.fget_object(self.store._bucket, source_key, src_path)
             wav_path = os.path.join(work, "normalized.wav")
-            await media._ffmpeg(["-i", src_path, "-ac", "2", "-ar", "44100", wav_path])
+            await media.decode_upload(src_path, wav_path)
             packaged = await media.package(wav_path, work)
             key_prefix = media.key_prefix(job.show_id, episode_id)
             self.store.upload_dir(packaged.root, key_prefix)

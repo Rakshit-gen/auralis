@@ -51,6 +51,23 @@ async def _ffprobe(path: str) -> dict:
     return json.loads(out)
 
 
+# The demuxer for each upload extension content allows. Naming it stops
+# ffmpeg guessing the format from the file's contents, so an upload can't
+# turn out to be a playlist or concat list that makes ffmpeg read other files
+# or URLs.
+UPLOAD_FORMATS = {".mp3": "mp3", ".m4a": "mov", ".wav": "wav", ".flac": "flac", ".ogg": "ogg"}
+
+
+async def decode_upload(src_path: str, wav_path: str) -> None:
+    """Decode a creator's upload to a stereo 44.1 kHz WAV, reading nothing
+    but the file itself."""
+    fmt = UPLOAD_FORMATS.get(os.path.splitext(src_path)[1].lower())
+    if fmt is None:
+        raise GenerationError("unsupported upload format")
+    args = ["-protocol_whitelist", "file", "-f", fmt, "-i", src_path]
+    await _ffmpeg([*args, "-map", "0:a:0", "-vn", "-ac", "2", "-ar", "44100", wav_path])
+
+
 def _randomize_segment_names(hls_dir: str, playlist: str) -> list[str]:
     """Rename a rendition's segments to random names and rewrite its playlist.
 

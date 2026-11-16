@@ -140,3 +140,26 @@ async def test_espeak_text_is_never_an_option(tmp_path):
     result = await LocalTTSProvider().synthesize([seg], str(tmp_path / "out"))
     assert not stray.exists()
     assert result.duration_sec > 0.5
+
+
+@pytest.mark.asyncio
+async def test_upload_decode_reads_only_the_file(tmp_path):
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    src = tmp_path / "tone.wav"
+    await media._ffmpeg(["-f", "lavfi", "-i", "sine=frequency=440:duration=1", str(src)])
+
+    # A concat list saved as .mp3. Going by the contents, ffmpeg would read
+    # the file it names, here a stand-in for anything else on the worker.
+    fake = tmp_path / "source.mp3"
+    fake.write_text(f"ffconcat version 1.0\nfile '{src}'\n")
+    sneaky = ["-i", str(fake), str(tmp_path / "sneaky.wav")]
+    await media._ffmpeg(["-safe", "0", *sneaky])  # what an unpinned format allows
+    with pytest.raises(GenerationError):
+        await media.decode_upload(str(fake), str(tmp_path / "out.wav"))
+    with pytest.raises(GenerationError, match="unsupported"):
+        await media.decode_upload(str(tmp_path / "source.m3u8"), str(tmp_path / "out.wav"))
+
+    # A real WAV still decodes.
+    await media.decode_upload(str(src), str(tmp_path / "ok.wav"))
+    assert (tmp_path / "ok.wav").stat().st_size > 1000
