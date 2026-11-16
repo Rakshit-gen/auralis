@@ -232,18 +232,17 @@ func (a *App) postProgress(w http.ResponseWriter, r *http.Request) {
 	occurredAt := parseTime(req.OccurredAt)
 	ctx := r.Context()
 
-	showID, durationSec := req.ShowID, req.DurationSec
-	// episodeMeta, not Store.EpisodeMeta: on a cold cache (service restart,
-	// consumer lag) the direct read misses and we would persist the event with
-	// duration_sec 0, which breaks analytics listening-time crediting.
-	if m, err := a.episodeMeta(ctx, req.EpisodeID); err == nil {
-		if showID == "" {
-			showID = m.ShowID
-		}
-		if durationSec <= 0 {
-			durationSec = m.DurationSec
-		}
+	// Show and duration come from the catalog, never the client: analytics
+	// credits listening time and plays to them, so a client value would let
+	// anyone pad any show's numbers. episodeMeta, not Store.EpisodeMeta, so a
+	// cold cache falls back to content instead of failing.
+	meta, err := a.episodeMeta(ctx, req.EpisodeID)
+	if err != nil || !meta.Published {
+		httpx.Error(w, r, errcodes.Missing("episode is not available for playback"))
+		return
 	}
+	showID, durationSec := meta.ShowID, meta.DurationSec
+	position, completed := clampProgress(req.PositionSec, durationSec, req.Completed)
 
 	tx, err := a.Store.Pool().Begin(ctx)
 	if err != nil {
@@ -269,7 +268,7 @@ func (a *App) postProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prog, justCompleted, err := a.Store.SaveProgress(ctx, tx, id.UserID, req.EpisodeID, showID,
-		req.PositionSec, durationSec, req.Completed, occurredAt)
+		position, durationSec, completed, occurredAt)
 	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not save progress"))
 		return
@@ -349,16 +348,14 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 			skipped++
 			continue
 		}
-		// Enrich from the authoritative episode cache: the client may omit
-		// show_id and never knows the real duration, which analytics needs to
-		// credit listening time on completion.
-		showID, durationSec := ev.ShowID, 0
-		if meta, merr := a.episodeMeta(ctx, ev.EpisodeID); merr == nil {
-			if showID == "" {
-				showID = meta.ShowID
-			}
-			durationSec = meta.DurationSec
+		// Show and duration come from the catalog, as in postProgress.
+		meta, merr := a.episodeMeta(ctx, ev.EpisodeID)
+		if merr != nil || !meta.Published {
+			skipped++
+			continue
 		}
+		showID, durationSec := meta.ShowID, meta.DurationSec
+		position, completed := clampProgress(ev.PositionSec, durationSec, ev.Type == "COMPLETE")
 		tx, err := a.Store.Pool().Begin(ctx)
 		if err != nil {
 			httpx.Error(w, r, errcodes.Unexpected("database unavailable"))
@@ -382,7 +379,7 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 		if ev.Type == "PROGRESS" || ev.Type == "COMPLETE" {
 			var err error
 			if _, justCompleted, err = a.Store.SaveProgress(ctx, tx, id.UserID, ev.EpisodeID, showID,
-				ev.PositionSec, durationSec, ev.Type == "COMPLETE", occurredAt); err != nil {
+				position, durationSec, completed, occurredAt); err != nil {
 				_ = tx.Rollback(ctx)
 				httpx.Error(w, r, errcodes.Unexpected("could not save progress"))
 				return
@@ -394,7 +391,7 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		payload := map[string]any{
 			"user_id": id.UserID, "episode_id": ev.EpisodeID, "show_id": showID,
-			"event_type": ev.Type, "position_sec": ev.PositionSec, "duration_sec": durationSec,
+			"event_type": ev.Type, "position_sec": position, "duration_sec": durationSec,
 			"completed": justCompleted, "session_id": ev.SessionID,
 			"occurred_at": occurredAt,
 		}
@@ -482,6 +479,16 @@ func (a *App) enqueue(ctx context.Context, tx pgx.Tx, eventType, key string, pay
 		return err
 	}
 	return outbox.Enqueue(ctx, tx, kafkax.TopicPlaybackEvents, key, env)
+}
+
+// clampProgress keeps a reported position inside the episode and only lets
+// it count as finished once the listener got through 90% of it.
+func clampProgress(positionSec, durationSec int, completed bool) (int, bool) {
+	if durationSec <= 0 {
+		return positionSec, completed
+	}
+	positionSec = min(positionSec, durationSec)
+	return positionSec, completed && positionSec*10 >= durationSec*9
 }
 
 func parseTime(s string) time.Time {

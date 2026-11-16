@@ -279,3 +279,50 @@ func TestCompletionCountsOnce(t *testing.T) {
 		t.Fatalf("expected 1 completion event, got %d", completions)
 	}
 }
+
+// TestProgressIgnoresClientShowAndDuration checks that analytics only ever
+// sees the catalog's show and duration, and that a position past the end or
+// an early "completed" can't be used to pad the numbers.
+func TestProgressIgnoresClientShowAndDuration(t *testing.T) {
+	ep := "10000000-0000-0000-0000-000000000004"
+	show := "20000000-0000-0000-0000-000000000004"
+	user := "30000000-0000-0000-0000-000000000004"
+	other := "20000000-0000-0000-0000-0000000000ff"
+
+	content := stubContent(ep, show, false)
+	defer content.Close()
+	users := stubUsers(false)
+	defer users.Close()
+	srv, _, pool := setup(t, content, users)
+
+	call(t, "POST", srv.URL+"/playback/progress", map[string]any{
+		"episode_id": ep, "show_id": other, "duration_sec": 99999, "position_sec": 60,
+		"completed": true, "client_event_id": "s-1",
+	}, hdr(user))
+	call(t, "POST", srv.URL+"/playback/events", map[string]any{"events": []map[string]any{
+		{"type": "PROGRESS", "episode_id": ep, "show_id": other, "position_sec": 1_000_000, "client_event_id": "s-2"},
+	}}, hdr(user))
+
+	rows, err := pool.Query(context.Background(),
+		`SELECT envelope->'payload'->>'show_id', (envelope->'payload'->>'duration_sec')::int,
+			(envelope->'payload'->>'position_sec')::int, envelope->>'event_type' FROM outbox_events ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var gotShow, typ string
+		var dur, pos int
+		if err := rows.Scan(&gotShow, &dur, &pos, &typ); err != nil {
+			t.Fatal(err)
+		}
+		n++
+		if gotShow != show || dur != 1400 || pos > 1400 || typ == "playback.completed" {
+			t.Fatalf("event %d: show %s duration %d position %d type %s", n, gotShow, dur, pos, typ)
+		}
+	}
+	if n != 2 {
+		t.Fatalf("expected 2 events, got %d", n)
+	}
+}
