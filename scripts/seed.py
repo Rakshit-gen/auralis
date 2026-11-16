@@ -289,15 +289,17 @@ def main() -> None:
 
     # --- listeners --------------------------------------------------------
     listeners: list[Client] = []
+    listener_ids: list[str] = []
     for n in range(55):
         c = Client(GATEWAY)
-        c.register(f"listener{n:02d}@auralis.local", "listener-account-1", f"Listener {n:02d}")
+        body = c.register(f"listener{n:02d}@auralis.local", "listener-account-1", f"Listener {n:02d}")
         listeners.append(c)
+        listener_ids.append(body["user"]["id"])
     print(f"created {len(listeners)} listeners")
 
-    # A few listeners redeem the promo code.
-    for c in listeners[:8]:
-        c.post("/api/me/entitlement/redeem", json={"code": "AURALIS-PREMIUM"})
+    # The admin grants a few listeners premium.
+    for uid in listener_ids[:8]:
+        admin.post(f"/api/admin/entitlements/users/{uid}/entitlement", json={"plan": "premium", "duration_days": 365})
 
     # Preferences: give each listener a couple of genre affinities.
     genre_slugs = list(genres.keys())

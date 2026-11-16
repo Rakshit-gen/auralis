@@ -40,9 +40,7 @@ function PremiumInner() {
         </h1>
         <p className="mt-2 max-w-xl text-sm text-bone-300">
           Premium shows are marked with a badge across the catalog. This portfolio build has no
-          payment provider; access is granted with a promo code or by an admin. The seeded code{" "}
-          <code className="rounded bg-ink-800 px-1.5 py-0.5 text-amber-soft">AURALIS-PREMIUM</code>{" "}
-          works for demonstrations.
+          payment provider; access is granted with a promo code or by an admin.
         </p>
       </div>
 
@@ -64,7 +62,6 @@ function PremiumInner() {
                 className="field w-64"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="AURALIS-PREMIUM"
               />
             </label>
             <button disabled={busy || !code.trim()} className="btn-primary">

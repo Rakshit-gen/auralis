@@ -45,6 +45,8 @@ func setup(t *testing.T) (*httptest.Server, *App) {
 		listening_history, entitlements, promo_redemptions, outbox_events, processed_events
 		RESTART IDENTITY CASCADE`)
 	_, _ = pool.Exec(ctx, `UPDATE promo_codes SET redeemed_count = 0`)
+	_, _ = pool.Exec(ctx, `INSERT INTO promo_codes (code, duration_days, max_redemptions)
+		VALUES ('TEST-PREMIUM', 30, 10) ON CONFLICT DO NOTHING`)
 	t.Cleanup(pool.Close)
 
 	app := NewApp(NewStore(pool), "svc")
@@ -116,8 +118,14 @@ func TestRegistrationThenLibraryFlow(t *testing.T) {
 		t.Fatalf("expected free plan: %s", data)
 	}
 
-	// Redeem the seeded promo code: now premium.
-	resp, data = req(t, "POST", srv.URL+"/me/entitlement/redeem", map[string]string{"code": "auralis-premium"}, hdr(user, "USER"))
+	// The old public demo code is switched off.
+	resp, _ = req(t, "POST", srv.URL+"/me/entitlement/redeem", map[string]string{"code": "AURALIS-PREMIUM"}, hdr(user, "USER"))
+	if resp.StatusCode != 400 {
+		t.Fatalf("retired code: expected 400, got %d", resp.StatusCode)
+	}
+
+	// Redeem a live promo code: now premium.
+	resp, data = req(t, "POST", srv.URL+"/me/entitlement/redeem", map[string]string{"code": "test-premium"}, hdr(user, "USER"))
 	if resp.StatusCode != 200 {
 		t.Fatalf("redeem: %d %s", resp.StatusCode, data)
 	}
@@ -127,7 +135,7 @@ func TestRegistrationThenLibraryFlow(t *testing.T) {
 	}
 
 	// Second redemption by the same user is rejected.
-	resp, _ = req(t, "POST", srv.URL+"/me/entitlement/redeem", map[string]string{"code": "AURALIS-PREMIUM"}, hdr(user, "USER"))
+	resp, _ = req(t, "POST", srv.URL+"/me/entitlement/redeem", map[string]string{"code": "TEST-PREMIUM"}, hdr(user, "USER"))
 	if resp.StatusCode != 400 {
 		t.Fatalf("double redeem: expected 400, got %d", resp.StatusCode)
 	}
