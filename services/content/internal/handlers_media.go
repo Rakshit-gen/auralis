@@ -29,9 +29,19 @@ var allowedUploadTypes = map[string]string{
 	"audio/ogg":   "ogg",
 }
 
+// audioReplaceable stops a creator swapping the audio of an episode that is
+// in review or already published, which would put unreviewed audio live.
+func audioReplaceable(w http.ResponseWriter, r *http.Request, e Episode) bool {
+	if e.Status != StatusDraft && e.Status != StatusRejected {
+		httpx.Error(w, r, errcodes.Conflicting("audio can only be uploaded for draft or rejected episodes"))
+		return false
+	}
+	return true
+}
+
 func (a *App) createUploadURL(w http.ResponseWriter, r *http.Request) {
 	e, err := a.episodeOwned(w, r)
-	if err != nil {
+	if err != nil || !audioReplaceable(w, r, e) {
 		return
 	}
 	var req uploadURLReq
@@ -78,7 +88,7 @@ type confirmUploadReq struct {
 // emits content.audio_uploaded so the ai-media service packages it into HLS.
 func (a *App) confirmUpload(w http.ResponseWriter, r *http.Request) {
 	e, err := a.episodeOwned(w, r)
-	if err != nil {
+	if err != nil || !audioReplaceable(w, r, e) {
 		return
 	}
 	var req confirmUploadReq

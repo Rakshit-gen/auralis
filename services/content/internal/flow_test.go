@@ -183,6 +183,16 @@ func TestAuthoringReviewPublishFlow(t *testing.T) {
 		}
 	}
 
+	// A published episode's audio can't be swapped for unreviewed audio.
+	for _, path := range []string{"/upload-url", "/media/confirm"} {
+		resp, _ = do(t, "POST", srv.URL+"/episodes/"+episodeID+path,
+			map[string]any{"content_type": "audio/mpeg", "size_bytes": 4096, "upload_id": episodeID},
+			hdr(creator, "CREATOR"))
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("%s on a published episode: expected 409, got %d", path, resp.StatusCode)
+		}
+	}
+
 	// The show is now in the public catalog and searchable.
 	resp, data = do(t, "GET", srv.URL+"/shows?q=harbor+signal", nil, nil)
 	if resp.StatusCode != http.StatusOK {
