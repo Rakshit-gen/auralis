@@ -90,7 +90,7 @@ func (a *Aggregator) apply(ctx context.Context, tx pgx.Tx, env envelope.Envelope
 			 ON CONFLICT (show_id) DO UPDATE SET title = EXCLUDED.title`, p.ShowID, p.Title)
 		return err
 
-	case "user.liked", "user.unliked", "user.bookmarked", "user.followed", "user.unfollowed":
+	case "user.liked", "user.unliked", "user.bookmarked", "user.unbookmarked", "user.followed", "user.unfollowed":
 		return a.applySocial(ctx, tx, env)
 
 	case "playback.progress", "playback.completed", "playback.play", "playback.skip",
@@ -118,6 +118,8 @@ func (a *Aggregator) applySocial(ctx context.Context, tx pgx.Tx, env envelope.En
 		col, delta = "likes", -1
 	case "user.bookmarked":
 		col = "bookmarks"
+	case "user.unbookmarked":
+		col, delta = "bookmarks", -1
 	case "user.followed":
 		col = "follows"
 	case "user.unfollowed":

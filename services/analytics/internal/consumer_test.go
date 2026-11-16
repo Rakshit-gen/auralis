@@ -75,12 +75,16 @@ func TestAggregationAndIdempotency(t *testing.T) {
 	})
 	must(agg.Handle(ctx, complete))
 	must(agg.Handle(ctx, ev(t, "user.liked", map[string]any{"user_id": user, "show_id": show, "target_id": show})))
+	must(agg.Handle(ctx, ev(t, "user.bookmarked", map[string]any{"user_id": user, "show_id": show, "episode_id": ep})))
+	must(agg.Handle(ctx, ev(t, "user.unbookmarked", map[string]any{"user_id": user, "show_id": show, "episode_id": ep})))
 
-	var plays, completes, likes int64
+	var plays, completes, likes, bookmarks int64
 	must(pool.QueryRow(ctx,
-		`SELECT plays, completes, likes FROM show_stats WHERE show_id = $1`, show).Scan(&plays, &completes, &likes))
-	if plays != 1 || completes != 1 || likes != 1 {
-		t.Fatalf("show_stats wrong after redelivery: plays=%d completes=%d likes=%d", plays, completes, likes)
+		`SELECT plays, completes, likes, bookmarks FROM show_stats WHERE show_id = $1`, show).
+		Scan(&plays, &completes, &likes, &bookmarks))
+	if plays != 1 || completes != 1 || likes != 1 || bookmarks != 0 {
+		t.Fatalf("show_stats wrong after redelivery: plays=%d completes=%d likes=%d bookmarks=%d",
+			plays, completes, likes, bookmarks)
 	}
 
 	var dau int

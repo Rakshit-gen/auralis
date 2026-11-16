@@ -47,8 +47,8 @@ Consumer: user creates the profile, default preferences, base entitlement.
 ### user.entitlement_changed (v1), producer: user
 
 ```json
-{ "user_id": "uuid", "entitlement": "premium", "active": true,
-  "source": "promo:AURALIS-PREMIUM", "expires_at": "2027-09-08T00:00:00Z" }
+{ "user_id": "uuid", "plan": "premium",
+  "source": "promo_code", "expires_at": "2027-09-08T00:00:00Z" }
 ```
 Consumers: analytics (premium counts), recommendation (preference weighting).
 
@@ -60,6 +60,15 @@ Consumers: analytics (premium counts), recommendation (preference weighting).
 Emitted only when the follow actually changed, so a repeated follow request
 publishes nothing. Consumers: analytics (`show_stats.follows`), notification
 (`show_followers` projection).
+
+### user.liked / user.unliked / user.bookmarked / user.unbookmarked (v1), producer: user
+
+```json
+{ "user_id": "uuid", "target_type": "episode", "target_id": "uuid", "show_id": "uuid" }
+```
+Bookmark events carry `episode_id` in place of `target_type` and `target_id`.
+`show_id` always comes from the catalog, never from the request. Emitted only
+when something changed. Consumers: analytics (`show_stats`), recommendation.
 
 ### content.show_published (v1), producer: content
 

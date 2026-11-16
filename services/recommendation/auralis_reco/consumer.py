@@ -101,6 +101,9 @@ class Handler:
             await repo.bump_signal(p["show_id"], bookmarks=1)
             await repo.bump_user_show(p["user_id"], p["show_id"], W_BOOKMARK)
             return
+        if event_type == "user.unbookmarked" and p.get("show_id"):
+            await repo.bump_signal(p["show_id"], bookmarks=-1)
+            return
         if event_type == "user.followed" and p.get("show_id"):
             await repo.bump_signal(p["show_id"], follows=1)
             await repo.bump_user_show(p["user_id"], p["show_id"], W_FOLLOW)
