@@ -30,6 +30,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// PruneSQL deletes rows published more than a week ago. They are only kept
+// that long for looking into what was sent. Pass it to db.Prune.
+const PruneSQL = `DELETE FROM outbox_events WHERE published_at < now() - interval '7 days'`
+
 // Enqueue writes one outbox row inside the caller's transaction.
 func Enqueue(ctx context.Context, tx pgx.Tx, topic, partitionKey string, env envelope.Envelope) error {
 	if err := env.Validate(); err != nil {

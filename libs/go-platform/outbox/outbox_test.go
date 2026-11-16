@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/auralis/platform/db"
 	"github.com/auralis/platform/envelope"
 	"github.com/auralis/platform/kafkax"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -162,5 +163,35 @@ func TestBadRowDoesNotBlockTheRelay(t *testing.T) {
 	}
 	if left != 0 {
 		t.Fatalf("%d rows still pending", left)
+	}
+}
+
+func TestPruneKeepsPendingAndRecentRows(t *testing.T) {
+	ctx := context.Background()
+	pool := relayPool(t)
+	for i := 0; i < 3; i++ {
+		enqueue(t, pool, "test.event")
+	}
+	// Row 1: published long ago. Row 2: published just now. Row 3: pending.
+	if _, err := pool.Exec(ctx, `UPDATE outbox_events SET published_at = now() - interval '8 days' WHERE id = 1;
+		UPDATE outbox_events SET published_at = now() WHERE id = 2`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE outbox_events SET created_at = now() - interval '30 days' WHERE id = 3`); err != nil {
+		t.Fatal(err)
+	}
+	db.PruneOnce(ctx, pool, map[string]string{"outbox_events": PruneSQL}, t.Logf, t.Logf)
+	var ids []int64
+	rows, err := pool.Query(ctx, `SELECT id FROM outbox_events ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id int64
+		_ = rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	if len(ids) != 2 || ids[0] != 2 || ids[1] != 3 {
+		t.Fatalf("rows left after prune: %v, want [2 3]", ids)
 	}
 }
