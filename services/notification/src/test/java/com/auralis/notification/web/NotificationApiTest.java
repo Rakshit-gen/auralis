@@ -32,11 +32,13 @@ class NotificationApiTest extends DatabaseTest {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .method(method, HttpRequest.BodyPublishers.noBody());
         if (user != null) {
+            String at = Long.toString(java.time.Instant.now().getEpochSecond());
             b.header("X-Auralis-User", user.toString())
                     .header("X-Auralis-Roles", "USER")
                     .header("X-Auralis-Request-Id", "req-1")
+                    .header("X-Auralis-Issued-At", at)
                     .header("X-Auralis-Identity-Sig",
-                            Identity.sign("test-identity-secret", user + "\nUSER\nreq-1"));
+                            Identity.sign("test-identity-secret", user + "\nUSER\nreq-1\n" + at));
         }
         HttpResponse<String> r = http.send(b.build(), HttpResponse.BodyHandlers.ofString());
         return new Res(r.statusCode(), json.readTree(r.body()));

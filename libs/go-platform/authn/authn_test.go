@@ -2,6 +2,7 @@ package authn
 
 import (
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -64,6 +65,11 @@ func TestIdentityHeaderRoundTripAndTamper(t *testing.T) {
 		t.Fatalf("identity not reconstructed: %+v", got)
 	}
 
+	h.Set("X-Auralis-Issued-At", "1700000000") // replaying an old capture
+	if _, _, err := FromHeaders(testSecret, h); err == nil {
+		t.Fatal("altered issued-at accepted")
+	}
+
 	h.Set("X-Auralis-Roles", "USER,CREATOR,ADMIN") // privilege escalation attempt
 	if _, _, err := FromHeaders(testSecret, h); err == nil {
 		t.Fatal("tampered roles header accepted")
@@ -91,5 +97,16 @@ func TestTrustClientIPOnlyAcceptsSignedAddress(t *testing.T) {
 	forged["X-Auralis-Client-Ip"] = "198.51.100.1"
 	if got := run(forged); got != "10.0.0.9:443" {
 		t.Fatalf("forged ip: RemoteAddr = %q", got)
+	}
+}
+
+func TestIdentityHeadersExpire(t *testing.T) {
+	h := http.Header{}
+	old := strconv.FormatInt(time.Now().Add(-2*IdentityMaxAge).Unix(), 10)
+	h.Set("X-Auralis-User", "user-9")
+	h.Set("X-Auralis-Issued-At", old)
+	h.Set("X-Auralis-Identity-Sig", signIdentity(testSecret, "user-9", "", "", old))
+	if _, _, err := FromHeaders(testSecret, h); err == nil {
+		t.Fatal("expired identity accepted")
 	}
 }

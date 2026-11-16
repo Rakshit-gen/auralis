@@ -45,6 +45,7 @@ public class IdentityFilter extends OncePerRequestFilter {
                     req.getHeader("X-Auralis-User"),
                     req.getHeader("X-Auralis-Roles"),
                     req.getHeader("X-Auralis-Request-Id"),
+                    req.getHeader("X-Auralis-Issued-At"),
                     req.getHeader("X-Auralis-Identity-Sig"));
         } catch (ApiException e) {
             res.setStatus(e.status().value());

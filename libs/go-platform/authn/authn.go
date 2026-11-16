@@ -2,9 +2,10 @@
 //
 // The gateway verifies the caller's access token and forwards identity to
 // downstream services as signed headers (X-Auralis-User, X-Auralis-Roles,
-// X-Auralis-Request-Id) plus an HMAC over them in X-Auralis-Identity-Sig so a
-// downstream service can trust the headers without re-parsing the JWT. Each
-// domain service still performs its own authorization checks.
+// X-Auralis-Request-Id, X-Auralis-Issued-At) plus an HMAC over them in
+// X-Auralis-Identity-Sig so a downstream service can trust the headers without
+// re-parsing the JWT. Each domain service still performs its own authorization
+// checks.
 package authn
 
 import (
@@ -15,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,21 +90,28 @@ func (v *Verifier) Parse(token string) (*Claims, error) {
 	return c, nil
 }
 
+// IdentityMaxAge is how long a signed identity stays valid after the gateway
+// signs it. The services are publicly reachable, so without a time limit a
+// captured set of headers would work forever.
+const IdentityMaxAge = 60 * time.Second
+
 // IdentityHeaders signs and returns the downstream identity headers.
 func IdentityHeaders(secret string, id Identity, requestID string) map[string]string {
 	roles := strings.Join(id.Roles, ",")
-	sig := signIdentity(secret, id.UserID, roles, requestID)
+	issued := strconv.FormatInt(time.Now().Unix(), 10)
+	sig := signIdentity(secret, id.UserID, roles, requestID, issued)
 	return map[string]string{
 		"X-Auralis-User":         id.UserID,
 		"X-Auralis-Roles":        roles,
 		"X-Auralis-Request-Id":   requestID,
+		"X-Auralis-Issued-At":    issued,
 		"X-Auralis-Identity-Sig": sig,
 	}
 }
 
-func signIdentity(secret, user, roles, requestID string) string {
+func signIdentity(secret, user, roles, requestID, issued string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(user + "\n" + roles + "\n" + requestID))
+	mac.Write([]byte(user + "\n" + roles + "\n" + requestID + "\n" + issued))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -112,13 +121,18 @@ func FromHeaders(secret string, h http.Header) (Identity, string, error) {
 	user := h.Get("X-Auralis-User")
 	roles := h.Get("X-Auralis-Roles")
 	requestID := h.Get("X-Auralis-Request-Id")
+	issued := h.Get("X-Auralis-Issued-At")
 	sig := h.Get("X-Auralis-Identity-Sig")
 	if user == "" || sig == "" {
 		return Identity{}, requestID, errcodes.Unauthed("missing identity headers")
 	}
-	want := signIdentity(secret, user, roles, requestID)
+	want := signIdentity(secret, user, roles, requestID, issued)
 	if !hmac.Equal([]byte(want), []byte(sig)) {
 		return Identity{}, requestID, errcodes.Unauthed("identity signature mismatch")
+	}
+	at, err := strconv.ParseInt(issued, 10, 64)
+	if age := time.Since(time.Unix(at, 0)); err != nil || age > IdentityMaxAge || age < -IdentityMaxAge {
+		return Identity{}, requestID, errcodes.Unauthed("identity headers have expired")
 	}
 	id := Identity{UserID: user}
 	if roles != "" {

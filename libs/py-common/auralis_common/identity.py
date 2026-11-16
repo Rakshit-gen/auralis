@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import time
 from dataclasses import dataclass, field
 
 from fastapi import Request
@@ -19,6 +20,9 @@ from auralis_common.errors import ApiError
 USER = "USER"
 CREATOR = "CREATOR"
 ADMIN = "ADMIN"
+
+# Matches authn.IdentityMaxAge in libs/go-platform.
+IDENTITY_MAX_AGE_SEC = 60
 
 
 @dataclass
@@ -33,8 +37,8 @@ class Identity:
         return any(r in self.roles for r in roles)
 
 
-def _sign(secret: str, user: str, roles: str, request_id: str) -> str:
-    mac = hmac.new(secret.encode(), f"{user}\n{roles}\n{request_id}".encode(), hashlib.sha256)
+def _sign(secret: str, user: str, roles: str, request_id: str, issued_at: str) -> str:
+    mac = hmac.new(secret.encode(), f"{user}\n{roles}\n{request_id}\n{issued_at}".encode(), hashlib.sha256)
     return mac.hexdigest()
 
 
@@ -52,10 +56,17 @@ def optional_identity(request: Request) -> Identity | None:
         return None
     roles = request.headers.get("x-auralis-roles", "")
     request_id = request.headers.get("x-auralis-request-id", "")
+    issued_at = request.headers.get("x-auralis-issued-at", "")
     sig = request.headers.get("x-auralis-identity-sig", "")
-    expected = _sign(_identity_secret(), user, roles, request_id)
+    expected = _sign(_identity_secret(), user, roles, request_id, issued_at)
     if not hmac.compare_digest(expected, sig):
         raise ApiError.unauthorized("identity signature mismatch")
+    try:
+        age = time.time() - int(issued_at)
+    except ValueError:
+        raise ApiError.unauthorized("identity headers have expired") from None
+    if abs(age) > IDENTITY_MAX_AGE_SEC:
+        raise ApiError.unauthorized("identity headers have expired")
     return Identity(user_id=user, roles=[r for r in roles.split(",") if r])
 
 
