@@ -68,7 +68,7 @@ services:
     dockerfilePath: ./services/gateway/Dockerfile
     dockerContext: .
     healthCheckPath: /health
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - key: GATEWAY_HTTP_ADDR
@@ -102,7 +102,7 @@ services:
     branch: master
     dockerfilePath: ./services/auth/Dockerfile
     dockerContext: .
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - key: AUTH_HTTP_ADDR
@@ -124,7 +124,7 @@ services:
     branch: master
     dockerfilePath: ./services/user/Dockerfile
     dockerContext: .
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - key: USER_HTTP_ADDR
@@ -142,7 +142,7 @@ services:
     branch: master
     dockerfilePath: ./services/content/Dockerfile
     dockerContext: .
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - fromGroup: auralis-s3
@@ -159,7 +159,7 @@ services:
     branch: master
     dockerfilePath: ./services/playback/Dockerfile
     dockerContext: .
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - fromGroup: auralis-s3
@@ -180,7 +180,7 @@ services:
     branch: master
     dockerfilePath: ./services/analytics/Dockerfile
     dockerContext: .
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - key: ANALYTICS_HTTP_ADDR
@@ -196,7 +196,7 @@ services:
     branch: master
     dockerfilePath: ./services/notification/Dockerfile
     dockerContext: .
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - key: NOTIFICATION_HTTP_ADDR
@@ -212,7 +212,7 @@ services:
     branch: master
     dockerfilePath: ./services/ai_media/Dockerfile
     dockerContext: .
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - fromGroup: auralis-s3
@@ -235,7 +235,7 @@ services:
     branch: master
     dockerfilePath: ./services/recommendation/Dockerfile
     dockerContext: .
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - fromGroup: auralis-shared
       - key: RECOMMENDATION_HTTP_ADDR

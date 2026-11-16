@@ -181,6 +181,9 @@ class Render:
         assert isinstance(res, dict)
         return res.get("service", res)
 
+    def set_auto_deploy(self, service_id: str) -> None:
+        self._req("PATCH", f"/services/{service_id}", {"autoDeploy": "yes"})
+
     def put_env(self, service_id: str, env: dict[str, str]) -> None:
         body = [{"key": k, "value": v} for k, v in sorted(env.items())]
         self._req("PUT", f"/services/{service_id}/env-vars", body)
@@ -295,7 +298,7 @@ def create_payload(name: str, spec: dict, owner: str, env: dict[str, str]) -> di
         "ownerId": owner,
         "repo": REPO,
         "branch": BRANCH,
-        "autoDeploy": "no",
+        "autoDeploy": "yes",
         "serviceDetails": details,
         "envVars": [{"key": k, "value": v} for k, v in sorted(env.items())],
     }
@@ -371,7 +374,10 @@ def main() -> None:
         spec = SERVICES[name]
         env = compute_env(name, spec, d, urls)
         r.put_env(existing[name]["id"], env)
-        print(f"  env synced {name} ({len(env)} vars)")
+        # Services created before auto-deploy was the default keep their old
+        # setting unless it is changed here.
+        r.set_auto_deploy(existing[name]["id"])
+        print(f"  env synced {name} ({len(env)} vars), auto-deploy on")
 
     if args.no_deploy:
         print("config synced; skipping deploys (--no-deploy)")
