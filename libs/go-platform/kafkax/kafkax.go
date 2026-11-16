@@ -229,8 +229,8 @@ func (c *Consumer) Run(ctx context.Context, handle Handler) error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			// ponytail: fixed 1s pause so a persistently unavailable DLQ does not
-			// hot-loop the partition; swap for capped backoff if it matters.
+			// A fixed one second pause, so a DLQ that stays down does not spin
+			// on the partition. Capped backoff would be gentler if that matters.
 			time.Sleep(time.Second)
 			continue
 		}
