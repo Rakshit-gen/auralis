@@ -241,12 +241,12 @@ func (s *Store) RecordLoginAttempt(ctx context.Context, emailNorm, ip string, ok
 	return err
 }
 
-// RecentFailedLogins counts failed attempts for an email in the given window.
-func (s *Store) RecentFailedLogins(ctx context.Context, emailNorm string, since time.Duration) (int, error) {
-	var n int
-	err := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM login_attempts
-		 WHERE email_norm = $1 AND successful = false AND at > now() - $2::interval`,
-		emailNorm, since.String()).Scan(&n)
-	return n, err
+// RecentFailedLogins counts failed attempts for an email in the given window,
+// in total and from one client IP.
+func (s *Store) RecentFailedLogins(ctx context.Context, emailNorm, ip string, since time.Duration) (total, fromIP int, err error) {
+	err = s.pool.QueryRow(ctx,
+		`SELECT count(*), count(*) FILTER (WHERE client_ip = $2) FROM login_attempts
+		 WHERE email_norm = $1 AND successful = false AND at > now() - $3::interval`,
+		emailNorm, ip, since.String()).Scan(&total, &fromIP)
+	return total, fromIP, err
 }

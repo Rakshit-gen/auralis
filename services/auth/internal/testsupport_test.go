@@ -54,6 +54,7 @@ func newTestApp(t *testing.T) (*App, *pgxpool.Pool) {
 
 func testRouter(app *App) chi.Router {
 	r := chi.NewRouter()
+	r.Use(authn.TrustClientIP(testIdentitySecret))
 	r.Use(authn.ServiceMiddleware(testIdentitySecret))
 	app.Routes(r)
 	return r

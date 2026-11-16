@@ -26,7 +26,8 @@ import (
 
 const (
 	service      = "auth"
-	maxFailed    = 8
+	maxFailed    = 8   // per email and client IP
+	maxFailedAll = 100 // per email from every IP, caps a spread-out guess run
 	failWindow   = 15 * time.Minute
 	bcryptCost   = 12
 	displayMaxCh = 60
@@ -246,7 +247,9 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if failed, _ := a.Store.RecentFailedLogins(ctx, norm, failWindow); failed >= maxFailed {
+	// Throttling per email alone let anyone lock a stranger out with eight
+	// bad passwords. Per email and IP only slows the guesser down.
+	if total, fromIP, _ := a.Store.RecentFailedLogins(ctx, norm, ip, failWindow); fromIP >= maxFailed || total >= maxFailedAll {
 		telemetry.Count(service, "login", "throttled")
 		httpx.Error(w, r, errcodes.New(http.StatusTooManyRequests, errcodes.RateLimited,
 			"too many failed attempts, try again later"))

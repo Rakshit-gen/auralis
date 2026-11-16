@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/auralis/platform/authn"
 	"io"
 	"net/http"
 	"sync"
@@ -153,6 +154,27 @@ func TestConcurrentRefreshOnlyOneWins(t *testing.T) {
 	}
 	if ok > 1 {
 		t.Fatalf("%d concurrent refreshes with one token succeeded, want at most 1", ok)
+	}
+}
+
+func TestFailedLoginsFromOneIPDoNotLockOthersOut(t *testing.T) {
+	app, _ := newTestApp(t)
+	srv := newServer(app)
+	defer srv.Close()
+
+	registerUser(t, srv.URL, "target@example.com")
+	attacker := authn.ClientIPHeaders(testIdentitySecret, "203.0.113.66")
+	owner := authn.ClientIPHeaders(testIdentitySecret, "198.51.100.5")
+	for range maxFailed {
+		post(t, srv.URL, "/auth/login", map[string]string{"email": "target@example.com", "password": "wrong-guess-1"}, attacker)
+	}
+	resp, _ := post(t, srv.URL, "/auth/login", map[string]string{"email": "target@example.com", "password": "correct-horse-9"}, attacker)
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("attacker IP after %d failures: expected 429, got %d", maxFailed, resp.StatusCode)
+	}
+	resp, _ = post(t, srv.URL, "/auth/login", map[string]string{"email": "target@example.com", "password": "correct-horse-9"}, owner)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("owner from another IP: expected 200, got %d", resp.StatusCode)
 	}
 }
 
