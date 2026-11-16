@@ -221,8 +221,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// service token in particular must never be forwarded from a client: it is
 	// a shared secret that grants unauthenticated service-to-service access, so
 	// a client that learned it could otherwise reach every /internal/* route.
-	for _, h := range []string{"X-Auralis-User", "X-Auralis-Roles", "X-Auralis-Identity-Sig", "X-Auralis-Service-Token"} {
+	for _, h := range []string{"X-Auralis-User", "X-Auralis-Roles", "X-Auralis-Identity-Sig", "X-Auralis-Service-Token",
+		"X-Auralis-Client-Ip", "X-Auralis-Client-Ip-Sig"} {
 		r.Header.Del(h)
+	}
+	for k, v := range authn.ClientIPHeaders(g.identitySecret, clientIP(r, g.trustedHops)) {
+		r.Header.Set(k, v)
 	}
 	if authed {
 		for k, v := range authn.IdentityHeaders(g.identitySecret, identity, reqID) {

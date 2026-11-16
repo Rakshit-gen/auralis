@@ -37,13 +37,14 @@ func echoBackend() (*httptest.Server, *echoState) {
 		st.lastRoles = r.Header.Get("X-Auralis-Roles")
 		st.lastSig = r.Header.Get("X-Auralis-Identity-Sig")
 		st.lastSvcToken = r.Header.Get("X-Auralis-Service-Token")
+		st.lastClientIP = r.Header.Get("X-Auralis-Client-Ip")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	}))
 	return srv, st
 }
 
-type echoState struct{ lastPath, lastUser, lastRoles, lastSig, lastSvcToken string }
+type echoState struct{ lastPath, lastUser, lastRoles, lastSig, lastSvcToken, lastClientIP string }
 
 func newTestGateway(t *testing.T, backends map[string]string, limit int) *Gateway {
 	t.Helper()
@@ -119,6 +120,14 @@ func TestGatewayAuthEnforcementAndIdentityForwarding(t *testing.T) {
 	}
 	if contentState.lastSvcToken != "" {
 		t.Fatal("gateway forwarded a client-supplied service token")
+	}
+
+	// A client can't pick the client IP the backend sees.
+	req, _ = http.NewRequest("GET", gw.URL+"/api/catalog/shows", nil)
+	req.Header.Set("X-Auralis-Client-Ip", "203.0.113.7")
+	resp, _ = http.DefaultClient.Do(req)
+	if contentState.lastClientIP != "127.0.0.1" {
+		t.Fatalf("backend saw client ip %q, want the gateway's view 127.0.0.1", contentState.lastClientIP)
 	}
 }
 
