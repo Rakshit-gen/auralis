@@ -326,3 +326,36 @@ func TestProgressIgnoresClientShowAndDuration(t *testing.T) {
 		t.Fatalf("expected 2 events, got %d", n)
 	}
 }
+
+func TestDeviceIDOfAnotherUserIsNotTouched(t *testing.T) {
+	content := stubContent("10000000-0000-0000-0000-000000000005", "20000000-0000-0000-0000-000000000005", false)
+	defer content.Close()
+	users := stubUsers(false)
+	defer users.Close()
+	srv, _, pool := setup(t, content, users)
+	owner := "30000000-0000-0000-0000-000000000051"
+	intruder := "30000000-0000-0000-0000-000000000052"
+
+	_, data := call(t, "PUT", srv.URL+"/playback/devices", map[string]any{"name": "Kitchen"}, hdr(owner))
+	var dev struct {
+		DeviceID string `json:"device_id"`
+	}
+	_ = json.Unmarshal(data, &dev)
+
+	_, data = call(t, "PUT", srv.URL+"/playback/devices",
+		map[string]any{"device_id": dev.DeviceID, "name": "pwned"}, hdr(intruder))
+	var got struct {
+		DeviceID string `json:"device_id"`
+	}
+	_ = json.Unmarshal(data, &got)
+	if got.DeviceID == dev.DeviceID {
+		t.Fatal("intruder was handed the owner's device id")
+	}
+	var name string
+	if err := pool.QueryRow(context.Background(), `SELECT name FROM devices WHERE id = $1`, dev.DeviceID).Scan(&name); err != nil {
+		t.Fatal(err)
+	}
+	if name != "Kitchen" {
+		t.Fatalf("owner's device renamed to %q", name)
+	}
+}

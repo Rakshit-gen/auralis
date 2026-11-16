@@ -183,19 +183,26 @@ func (s *Store) TouchSession(ctx context.Context, sessionID, userID string) erro
 	return err
 }
 
+// UpsertDevice touches the caller's device, or registers a new one when
+// deviceID is empty or belongs to another user.
 func (s *Store) UpsertDevice(ctx context.Context, userID, deviceID, name, kind string) (string, error) {
-	if deviceID == "" {
+	if deviceID != "" {
 		var id string
 		err := s.pool.QueryRow(ctx,
-			`INSERT INTO devices (user_id, name, kind) VALUES ($1,$2,$3) RETURNING id`,
-			userID, name, kind).Scan(&id)
-		return id, err
+			`INSERT INTO devices (id, user_id, name, kind) VALUES ($1,$2,$3,$4)
+			 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind, last_seen_at = now()
+			 WHERE devices.user_id = EXCLUDED.user_id
+			 RETURNING id`,
+			deviceID, userID, name, kind).Scan(&id)
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return id, err
+		}
 	}
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO devices (id, user_id, name, kind) VALUES ($1,$2,$3,$4)
-		 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, kind = EXCLUDED.kind, last_seen_at = now()`,
-		deviceID, userID, name, kind)
-	return deviceID, err
+	var id string
+	err := s.pool.QueryRow(ctx,
+		`INSERT INTO devices (user_id, name, kind) VALUES ($1,$2,$3) RETURNING id`,
+		userID, name, kind).Scan(&id)
+	return id, err
 }
 
 func (s *Store) Devices(ctx context.Context, userID string) ([]map[string]any, error) {
