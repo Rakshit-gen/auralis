@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import json
 import os
+import secrets
 import shutil
 
 import structlog
@@ -58,6 +59,34 @@ async def _ffprobe(path: str) -> dict:
     if proc.returncode != 0:
         raise GenerationError(f"ffprobe failed: {err.decode()[:200]}")
     return json.loads(out)
+
+
+def _randomize_segment_names(hls_dir: str, playlist: str) -> list[str]:
+    """Rename a rendition's segments to random names and rewrite its playlist.
+
+    The bucket is publicly readable, so numbered names let anyone who learned
+    one segment URL (a preview listener, say) fetch the rest of a premium
+    episode. With random names, only the playlist, which playback serves and
+    cuts off at the preview limit, says where the segments are.
+    """
+    with open(playlist) as f:
+        lines = f.read().splitlines()
+    names = []
+    for i, line in enumerate(lines):
+        if line and not line.startswith("#"):
+            new = f"{secrets.token_hex(16)}.ts"
+            os.rename(os.path.join(hls_dir, line), os.path.join(hls_dir, new))
+            lines[i] = new
+            names.append(new)
+    with open(playlist, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    return names
+
+
+def key_prefix(show_id: str, episode_id: str) -> str:
+    """Where an episode's HLS files go. The random part keeps the playlists,
+    which list every segment, from being found by guessing the path."""
+    return f"hls/{show_id}/{episode_id}/{secrets.token_hex(16)}"
 
 
 class PackagedAudio:
@@ -118,11 +147,8 @@ async def package(wav_path: str, work_dir: str) -> PackagedAudio:
                     playlist,
                 ]
             )
-        seg_bytes = sum(
-            os.path.getsize(os.path.join(hls_dir, f))
-            for f in os.listdir(hls_dir)
-            if f.startswith(f"{name}_") and f.endswith(".ts")
-        )
+        segments = _randomize_segment_names(hls_dir, playlist)
+        seg_bytes = sum(os.path.getsize(os.path.join(hls_dir, f)) for f in segments)
         result.variants.append(
             {"bitrate_kbps": kbps, "playlist": f"{name}.m3u8", "codec": "aac", "size_bytes": seg_bytes}
         )

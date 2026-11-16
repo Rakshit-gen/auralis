@@ -94,6 +94,11 @@ async def test_tts_and_ffmpeg_packaging(tmp_path):
     assert packaged.codec == "aac"
     assert packaged.checksum_sha256
     assert (tmp_path / "work" / "hls" / "master.m3u8").exists()
+    # Segment names are random, so one segment URL doesn't give away the rest.
+    segments = [p.name for p in (tmp_path / "work" / "hls").glob("*.ts")]
+    assert segments and not any(n.startswith("audio_") for n in segments)
+    playlist = (tmp_path / "work" / "hls" / "audio_256.m3u8").read_text()
+    assert all(line in segments for line in playlist.splitlines() if line and not line.startswith("#"))
 
 
 @pytest.mark.asyncio

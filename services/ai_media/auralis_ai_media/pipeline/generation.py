@@ -214,7 +214,7 @@ class Pipeline:
             await repo.s.flush()
             packaged = await media.package(tts_result.wav_path, work)
 
-            key_prefix = f"hls/{show_id}/{episode_id}"
+            key_prefix = media.key_prefix(show_id, episode_id)
             self.store.upload_dir(packaged.root, key_prefix)
 
             media_meta = {
@@ -259,7 +259,7 @@ class Pipeline:
             wav_path = os.path.join(work, "normalized.wav")
             await media._ffmpeg(["-i", src_path, "-ac", "2", "-ar", "44100", wav_path])
             packaged = await media.package(wav_path, work)
-            key_prefix = f"hls/{job.show_id}/{episode_id}"
+            key_prefix = media.key_prefix(job.show_id, episode_id)
             self.store.upload_dir(packaged.root, key_prefix)
             await self._patch_episode(
                 job.id,
