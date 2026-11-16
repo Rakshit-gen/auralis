@@ -22,12 +22,28 @@ public class IdentityFilter extends OncePerRequestFilter {
     private final String secret;
     private final ObjectMapper json;
 
-    public IdentityFilter(@Value("${IDENTITY_SECRET}") String secret, ObjectMapper json) {
+    /** Same rule as the Go config.RequireSecret and the Python settings. */
+    static final int MIN_SECRET_LEN = 32;
+
+    public IdentityFilter(
+            @Value("${IDENTITY_SECRET}") String secret,
+            @Value("${ALLOW_DEV_SECRETS:false}") boolean allowDevSecrets,
+            ObjectMapper json) {
+        checkSecret(secret, allowDevSecrets);
+        this.secret = secret;
+        this.json = json;
+    }
+
+    static void checkSecret(String secret, boolean allowDevSecrets) {
         if (secret.isBlank()) {
             throw new IllegalStateException("IDENTITY_SECRET is required");
         }
-        this.secret = secret;
-        this.json = json;
+        if (secret.length() < MIN_SECRET_LEN) {
+            throw new IllegalStateException("IDENTITY_SECRET is shorter than " + MIN_SECRET_LEN + " characters");
+        }
+        if (secret.toLowerCase().contains("change-me") && !allowDevSecrets) {
+            throw new IllegalStateException("IDENTITY_SECRET is still the example value; set a real secret");
+        }
     }
 
     @Override

@@ -38,7 +38,7 @@ class NotificationApiTest extends DatabaseTest {
                     .header("X-Auralis-Request-Id", "req-1")
                     .header("X-Auralis-Issued-At", at)
                     .header("X-Auralis-Identity-Sig",
-                            Identity.sign("test-identity-secret", user + "\nUSER\nreq-1\n" + at));
+                            Identity.sign("test-identity-secret-0123456789abcdef", user + "\nUSER\nreq-1\n" + at));
         }
         HttpResponse<String> r = http.send(b.build(), HttpResponse.BodyHandlers.ofString());
         return new Res(r.statusCode(), json.readTree(r.body()));
