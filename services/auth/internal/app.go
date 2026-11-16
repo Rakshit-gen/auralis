@@ -582,10 +582,9 @@ func validRoles(in []string) ([]string, error) {
 	return out, nil
 }
 
+// clientIP is the TCP peer, which authn.TrustClientIP has already replaced
+// with the gateway-signed address when there is one.
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.TrimSpace(strings.Split(xff, ",")[0])
-	}
 	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 		return h
 	}
