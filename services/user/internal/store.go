@@ -182,8 +182,8 @@ func (s *Store) UpdatePreferences(ctx context.Context, tx pgx.Tx, p Preferences)
 
 // --- likes / bookmarks / follows ---
 
-// AddLike, RemoveLike, AddBookmark, AddFollow and RemoveFollow run inside the
-// caller's transaction so the library change and the event it emits commit
+// AddLike, RemoveLike, AddBookmark, RemoveBookmark, AddFollow and RemoveFollow
+// run inside the caller's transaction so the library change and the event it emits commit
 // together.
 func (s *Store) AddLike(ctx context.Context, tx pgx.Tx, userID, targetType, targetID, showID string) (bool, error) {
 	ct, err := tx.Exec(ctx,
@@ -192,11 +192,21 @@ func (s *Store) AddLike(ctx context.Context, tx pgx.Tx, userID, targetType, targ
 	return ct.RowsAffected() > 0, err
 }
 
-func (s *Store) RemoveLike(ctx context.Context, tx pgx.Tx, userID, targetType, targetID string) (bool, error) {
-	ct, err := tx.Exec(ctx,
-		`DELETE FROM likes WHERE user_id = $1 AND target_type = $2 AND target_id = $3`,
+// RemoveLike returns the show the like counted toward, or "" if there was no
+// like to remove.
+func (s *Store) RemoveLike(ctx context.Context, tx pgx.Tx, userID, targetType, targetID string) (string, error) {
+	return deleteReturningShow(ctx, tx,
+		`DELETE FROM likes WHERE user_id = $1 AND target_type = $2 AND target_id::text = $3 RETURNING show_id`,
 		userID, targetType, targetID)
-	return ct.RowsAffected() > 0, err
+}
+
+func deleteReturningShow(ctx context.Context, tx pgx.Tx, sql string, args ...any) (string, error) {
+	var showID string
+	err := tx.QueryRow(ctx, sql, args...).Scan(&showID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return showID, err
 }
 
 func (s *Store) Likes(ctx context.Context, userID string, limit, offset int) ([]Like, error) {
@@ -226,10 +236,12 @@ func (s *Store) AddBookmark(ctx context.Context, tx pgx.Tx, userID, episodeID, s
 	return ct.RowsAffected() > 0, err
 }
 
-func (s *Store) RemoveBookmark(ctx context.Context, userID, episodeID string) (bool, error) {
-	ct, err := s.pool.Exec(ctx,
-		`DELETE FROM bookmarks WHERE user_id = $1 AND episode_id = $2`, userID, episodeID)
-	return ct.RowsAffected() > 0, err
+// RemoveBookmark returns the bookmarked episode's show, or "" if there was
+// no bookmark.
+func (s *Store) RemoveBookmark(ctx context.Context, tx pgx.Tx, userID, episodeID string) (string, error) {
+	return deleteReturningShow(ctx, tx,
+		`DELETE FROM bookmarks WHERE user_id = $1 AND episode_id::text = $2 RETURNING show_id`,
+		userID, episodeID)
 }
 
 func (s *Store) Bookmarks(ctx context.Context, userID string, limit, offset int) ([]Bookmark, error) {

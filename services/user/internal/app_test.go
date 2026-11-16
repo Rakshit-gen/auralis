@@ -331,3 +331,47 @@ func TestLikesAndBookmarksTakeTheShowFromTheCatalog(t *testing.T) {
 		t.Fatalf("bad id: expected 404, got %d", resp.StatusCode)
 	}
 }
+
+func TestRemovalsCarryTheShow(t *testing.T) {
+	srv, app := setup(t)
+	user := "40000000-0000-0000-0000-0000000000c2"
+	ep := "10000000-0000-0000-0000-0000000000c2"
+	if err := app.Handle(context.Background(), mkEvent(t, "user.registered", map[string]any{
+		"user_id": user, "email": "removals@example.com", "display_name": "Removals",
+	})); err != nil {
+		t.Fatalf("handle registered: %v", err)
+	}
+	for _, c := range []struct {
+		method, path string
+		body         any
+	}{
+		{"POST", "/me/likes", map[string]string{"type": "episode", "id": ep}},
+		{"DELETE", "/me/likes/episode/" + ep, nil},
+		{"POST", "/me/bookmarks", map[string]string{"episode_id": ep}},
+		{"DELETE", "/me/bookmarks/" + ep, nil},
+		{"DELETE", "/me/bookmarks/" + ep, nil}, // nothing left to remove, no event
+	} {
+		if resp, data := req(t, c.method, srv.URL+c.path, c.body, hdr(user, "USER")); resp.StatusCode != 200 {
+			t.Fatalf("%s %s: %d %s", c.method, c.path, resp.StatusCode, data)
+		}
+	}
+	rows, err := app.Store.Pool().Query(context.Background(),
+		`SELECT envelope->>'event_type', envelope->'payload'->>'show_id' FROM outbox_events
+		 WHERE envelope->>'event_type' IN ('user.unliked', 'user.unbookmarked') ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var typ, show string
+		if err := rows.Scan(&typ, &show); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, typ+" "+show)
+	}
+	want := []string{"user.unliked " + catalogShow, "user.unbookmarked " + catalogShow}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("removal events: got %v, want %v", got, want)
+	}
+}

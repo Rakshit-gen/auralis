@@ -260,9 +260,9 @@ func (a *App) removeLike(w http.ResponseWriter, r *http.Request) {
 	uid := caller(r)
 	err := a.mutate(r.Context(), "user.unliked", uid,
 		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
-			removed, err := a.Store.RemoveLike(ctx, tx, uid, t, targetID)
-			return removed, map[string]any{
-				"user_id": uid, "target_type": t, "target_id": targetID,
+			showID, err := a.Store.RemoveLike(ctx, tx, uid, t, targetID)
+			return showID != "", map[string]any{
+				"user_id": uid, "target_type": t, "target_id": targetID, "show_id": showID,
 			}, err
 		})
 	if err != nil {
@@ -320,7 +320,15 @@ func (a *App) addBookmark(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) removeBookmark(w http.ResponseWriter, r *http.Request) {
 	episodeID := chi.URLParam(r, "episodeId")
-	if _, err := a.Store.RemoveBookmark(r.Context(), caller(r), episodeID); err != nil {
+	uid := caller(r)
+	err := a.mutate(r.Context(), "user.unbookmarked", uid,
+		func(ctx context.Context, tx pgx.Tx) (bool, map[string]any, error) {
+			showID, err := a.Store.RemoveBookmark(ctx, tx, uid, episodeID)
+			return showID != "", map[string]any{
+				"user_id": uid, "episode_id": episodeID, "show_id": showID,
+			}, err
+		})
+	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not remove bookmark"))
 		return
 	}
