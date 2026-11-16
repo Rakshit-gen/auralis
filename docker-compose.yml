@@ -4,6 +4,8 @@ x-service-env: &service-env
   LOG_LEVEL: ${LOG_LEVEL:-info}
   IDENTITY_SECRET: ${IDENTITY_SECRET}
   SERVICE_SHARED_TOKEN: ${SERVICE_SHARED_TOKEN}
+  # The .env.example secrets are placeholders; services refuse them without this.
+  ALLOW_DEV_SECRETS: "true"
   JWT_SECRET: ${JWT_SECRET}
   JWT_ISSUER: auralis-auth
   JWT_AUDIENCE: auralis

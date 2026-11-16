@@ -34,6 +34,26 @@ func (r *Reader) Require(key string) string {
 	return v
 }
 
+// MinSecretLen is the shortest HMAC secret or shared token accepted: 32
+// bytes, the size of the SHA-256 output the secrets key.
+const MinSecretLen = 32
+
+// RequireSecret is Require for secrets. A value shorter than MinSecretLen,
+// or one still containing the "change-me" placeholder from .env.example, is
+// refused unless ALLOW_DEV_SECRETS is set, which only local compose does.
+func (r *Reader) RequireSecret(key string) string {
+	v := r.Require(key)
+	if v == "" {
+		return v
+	}
+	if len(v) < MinSecretLen {
+		r.missing = append(r.missing, fmt.Sprintf("%s (shorter than %d characters)", key, MinSecretLen))
+	} else if strings.Contains(strings.ToLower(v), "change-me") && !r.OptionalBool("ALLOW_DEV_SECRETS", false) {
+		r.missing = append(r.missing, key+" (still the example value; set a real secret or ALLOW_DEV_SECRETS=true locally)")
+	}
+	return v
+}
+
 // Optional returns the value for key or fallback when unset.
 func (r *Reader) Optional(key, fallback string) string {
 	v := strings.TrimSpace(os.Getenv(key))

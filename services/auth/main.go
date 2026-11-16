@@ -28,8 +28,8 @@ func main() {
 
 	c := config.New()
 	dbURL := c.Require("AUTH_DATABASE_URL")
-	jwtSecret := c.Require("JWT_SECRET")
-	identitySecret := c.Require("IDENTITY_SECRET")
+	jwtSecret := c.RequireSecret("JWT_SECRET")
+	identitySecret := c.RequireSecret("IDENTITY_SECRET")
 	kafkaBrokers := c.Require("KAFKA_BROKERS")
 	addr := c.Optional("AUTH_HTTP_ADDR", ":8081")
 	issuer := c.Optional("JWT_ISSUER", "auralis-auth")

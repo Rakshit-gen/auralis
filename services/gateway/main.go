@@ -27,8 +27,8 @@ func main() {
 	ctx := context.Background()
 
 	c := config.New()
-	jwtSecret := c.Require("JWT_SECRET")
-	identitySecret := c.Require("IDENTITY_SECRET")
+	jwtSecret := c.RequireSecret("JWT_SECRET")
+	identitySecret := c.RequireSecret("IDENTITY_SECRET")
 	addr := c.Optional("GATEWAY_HTTP_ADDR", ":8080")
 	issuer := c.Optional("JWT_ISSUER", "auralis-auth")
 	audience := c.Optional("JWT_AUDIENCE", "auralis")

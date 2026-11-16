@@ -29,8 +29,8 @@ func main() {
 
 	c := config.New()
 	dbURL := c.Require("CONTENT_DATABASE_URL")
-	identitySecret := c.Require("IDENTITY_SECRET")
-	serviceToken := c.Require("SERVICE_SHARED_TOKEN")
+	identitySecret := c.RequireSecret("IDENTITY_SECRET")
+	serviceToken := c.RequireSecret("SERVICE_SHARED_TOKEN")
 	kafkaBrokers := c.Require("KAFKA_BROKERS")
 	s3Endpoint := c.Require("S3_ENDPOINT")
 	s3Key := c.Require("S3_ACCESS_KEY")

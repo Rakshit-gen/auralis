@@ -30,8 +30,8 @@ func main() {
 
 	c := config.New()
 	dbURL := c.Require("PLAYBACK_DATABASE_URL")
-	identitySecret := c.Require("IDENTITY_SECRET")
-	serviceToken := c.Require("SERVICE_SHARED_TOKEN")
+	identitySecret := c.RequireSecret("IDENTITY_SECRET")
+	serviceToken := c.RequireSecret("SERVICE_SHARED_TOKEN")
 	kafkaBrokers := c.Require("KAFKA_BROKERS")
 	contentURL := c.Require("CONTENT_SERVICE_URL")
 	userURL := c.Require("USER_SERVICE_URL")

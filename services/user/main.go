@@ -29,8 +29,8 @@ func main() {
 
 	c := config.New()
 	dbURL := c.Require("USER_DATABASE_URL")
-	identitySecret := c.Require("IDENTITY_SECRET")
-	serviceToken := c.Require("SERVICE_SHARED_TOKEN")
+	identitySecret := c.RequireSecret("IDENTITY_SECRET")
+	serviceToken := c.RequireSecret("SERVICE_SHARED_TOKEN")
 	kafkaBrokers := c.Require("KAFKA_BROKERS")
 	contentURL := c.Require("CONTENT_SERVICE_URL")
 	addr := c.Optional("USER_HTTP_ADDR", ":8083")

@@ -27,7 +27,7 @@ func main() {
 
 	c := config.New()
 	dbURL := c.Require("ANALYTICS_DATABASE_URL")
-	identitySecret := c.Require("IDENTITY_SECRET")
+	identitySecret := c.RequireSecret("IDENTITY_SECRET")
 	kafkaBrokers := c.Require("KAFKA_BROKERS")
 	addr := c.Optional("ANALYTICS_HTTP_ADDR", ":8087")
 	otlp := c.Optional("OTEL_EXPORTER_OTLP_ENDPOINT", "")
