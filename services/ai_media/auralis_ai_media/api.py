@@ -3,6 +3,8 @@ queued; no generation, TTS, or FFmpeg work happens in a request handler."""
 
 from __future__ import annotations
 
+import uuid
+
 from auralis_common.errors import ApiError
 from auralis_common.identity import Identity, require_identity, require_roles
 from fastapi import APIRouter, Depends, Query
@@ -27,6 +29,13 @@ class EpisodeRequest(BaseModel):
     seed: int | None = None
 
 
+def creator(identity: Identity = Depends(require_identity)) -> Identity:
+    """Generation creates shows and spends LLM and TTS time, so it is for creators."""
+    if not identity.has_any("CREATOR", "ADMIN"):
+        raise ApiError.forbidden()
+    return identity
+
+
 def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
     router = APIRouter()
 
@@ -37,7 +46,7 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
     @router.post("/generate/series", status_code=202)
     async def generate_series(
         body: SeriesRequest,
-        identity: Identity = Depends(require_identity),
+        identity: Identity = Depends(creator),
         rs=Depends(repo_dep),
     ):
         repo, session = rs
@@ -53,10 +62,15 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
     @router.post("/generate/episode", status_code=202)
     async def generate_episode(
         body: EpisodeRequest,
-        identity: Identity = Depends(require_identity),
+        identity: Identity = Depends(creator),
         rs=Depends(repo_dep),
     ):
         repo, session = rs
+        if not _is_uuid(body.show_id):
+            raise ApiError.not_found("show not found")
+        owner = await repo.show_owner(body.show_id)
+        if owner is None or (owner != identity.user_id and not identity.has_role("ADMIN")):
+            raise ApiError.not_found("no story bible exists for this show; generate a series first")
         bible = await repo.load_bible(body.show_id)
         if bible is None:
             raise ApiError.not_found("no story bible exists for this show; generate a series first")
@@ -76,10 +90,11 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
         return {"job_id": job.id, "status": job.status}
 
     @router.get("/generate/jobs/{job_id}")
-    async def job_status(job_id: str, _identity: Identity = Depends(require_identity), rs=Depends(repo_dep)):
+    async def job_status(job_id: str, identity: Identity = Depends(require_identity), rs=Depends(repo_dep)):
         repo, _ = rs
-        job = await repo.get_job(job_id)
-        if job is None:
+        job = await repo.get_job(job_id) if _is_uuid(job_id) else None
+        # Someone else's job reads as missing, so ids can't be probed.
+        if job is None or (job.requested_by != identity.user_id and not identity.has_role("ADMIN")):
             raise ApiError.not_found("job not found")
         return _job_view(job)
 
@@ -95,6 +110,14 @@ def build_router(sessionmaker: async_sessionmaker) -> APIRouter:
         return {"jobs": [_job_view(j) for j in jobs]}
 
     return router
+
+
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 def _job_view(job) -> dict:

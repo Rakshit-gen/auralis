@@ -28,6 +28,15 @@ class Repo:
     async def get_job(self, job_id: str) -> models.GenerationJob | None:
         return await self.s.get(models.GenerationJob, job_id)
 
+    async def show_owner(self, show_id: str) -> str | None:
+        """Who asked for the series that created show_id, if ai-media made it."""
+        stmt = (
+            select(models.GenerationJob.requested_by)
+            .where(models.GenerationJob.kind == "series", models.GenerationJob.show_id == show_id)
+            .limit(1)
+        )
+        return (await self.s.execute(stmt)).scalar_one_or_none()
+
     async def next_queued_job(self) -> models.GenerationJob | None:
         stmt = (
             select(models.GenerationJob)
