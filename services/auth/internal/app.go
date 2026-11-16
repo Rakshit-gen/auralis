@@ -547,7 +547,9 @@ func (a *App) mintForLogin(ctx context.Context, user User, r *http.Request) (Iss
 
 func normalizeEmail(email string) string {
 	e := strings.ToLower(strings.TrimSpace(email))
-	if _, err := mail.ParseAddress(e); err != nil {
+	// ParseAddress also accepts "Name <a@b.com>", which would give one address
+	// several distinct normalized forms and so several accounts.
+	if a, err := mail.ParseAddress(e); err != nil || a.Address != e {
 		return ""
 	}
 	return e
