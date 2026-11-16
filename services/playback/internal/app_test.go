@@ -242,3 +242,40 @@ func TestAuthorizePremiumGate(t *testing.T) {
 		t.Fatal("expected a signed master url even for preview")
 	}
 }
+
+// TestCompletionCountsOnce guards against the sticky completed flag turning
+// every save after finishing an episode into another playback.completed.
+func TestCompletionCountsOnce(t *testing.T) {
+	ep := "10000000-0000-0000-0000-000000000003"
+	show := "20000000-0000-0000-0000-000000000003"
+	user := "30000000-0000-0000-0000-000000000003"
+
+	content := stubContent(ep, show, false)
+	defer content.Close()
+	users := stubUsers(false)
+	defer users.Close()
+	srv, _, pool := setup(t, content, users)
+
+	for i, body := range []map[string]any{
+		{"episode_id": ep, "position_sec": 1400, "completed": true, "client_event_id": "c-1"},
+		{"episode_id": ep, "position_sec": 1400, "completed": true, "client_event_id": "c-2"},
+		{"episode_id": ep, "position_sec": 30, "client_event_id": "c-3"},
+	} {
+		if resp, data := call(t, "POST", srv.URL+"/playback/progress", body, hdr(user)); resp.StatusCode != 200 {
+			t.Fatalf("progress %d: %d %s", i, resp.StatusCode, data)
+		}
+	}
+	call(t, "POST", srv.URL+"/playback/events", map[string]any{"events": []map[string]any{
+		{"type": "COMPLETE", "episode_id": ep, "position_sec": 1400, "client_event_id": "c-4"},
+	}}, hdr(user))
+
+	var completions int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM outbox_events WHERE envelope->>'event_type' = 'playback.completed'
+		 OR (envelope->'payload'->>'completed')::boolean`).Scan(&completions); err != nil {
+		t.Fatal(err)
+	}
+	if completions != 1 {
+		t.Fatalf("expected 1 completion event, got %d", completions)
+	}
+}

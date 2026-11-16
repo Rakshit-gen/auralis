@@ -97,29 +97,39 @@ func (s *Store) EpisodeMeta(ctx context.Context, episodeID string) (EpisodeMeta,
 // --- progress ---
 
 // SaveProgress applies a progress observation. It returns the resulting stored
-// progress. An out-of-order event (occurredAt older than the stored
-// last_event_at) does not move position backwards, but a larger position always
-// wins so a fast client that briefly lost ordering still makes progress.
+// progress and whether this observation is the one that completed the episode.
+// An out-of-order event (occurredAt older than the stored last_event_at) does
+// not move position backwards, but a larger position always wins so a fast
+// client that briefly lost ordering still makes progress.
 func (s *Store) SaveProgress(ctx context.Context, tx pgx.Tx, userID, episodeID, showID string,
-	positionSec, durationSec int, completed bool, occurredAt time.Time) (Progress, error) {
+	positionSec, durationSec int, completed bool, occurredAt time.Time) (Progress, bool, error) {
 
 	var p Progress
+	var justCompleted bool
 	err := tx.QueryRow(ctx,
-		`INSERT INTO playback_progress (user_id, episode_id, show_id, position_sec, duration_sec, completed, last_event_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)
-		 ON CONFLICT (user_id, episode_id) DO UPDATE SET
-			position_sec = CASE
-				WHEN $4 > playback_progress.position_sec THEN $4
-				WHEN $7 >= playback_progress.last_event_at THEN $4
-				ELSE playback_progress.position_sec END,
-			duration_sec = GREATEST(playback_progress.duration_sec, $5),
-			completed = playback_progress.completed OR $6,
-			last_event_at = GREATEST(playback_progress.last_event_at, $7),
-			updated_at = now()
-		 RETURNING episode_id, show_id, position_sec, duration_sec, completed, updated_at`,
+		// prev reads the row as it was before this statement. No FOR UPDATE:
+		// a locking read follows the row to the version saved writes, which
+		// would make every save look like the first completion.
+		`WITH prev AS (
+			SELECT completed FROM playback_progress WHERE user_id = $1 AND episode_id = $2
+		 ), saved AS (
+			INSERT INTO playback_progress (user_id, episode_id, show_id, position_sec, duration_sec, completed, last_event_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)
+			ON CONFLICT (user_id, episode_id) DO UPDATE SET
+				position_sec = CASE
+					WHEN $4 > playback_progress.position_sec THEN $4
+					WHEN $7 >= playback_progress.last_event_at THEN $4
+					ELSE playback_progress.position_sec END,
+				duration_sec = GREATEST(playback_progress.duration_sec, $5),
+				completed = playback_progress.completed OR $6,
+				last_event_at = GREATEST(playback_progress.last_event_at, $7),
+				updated_at = now()
+			RETURNING episode_id, show_id, position_sec, duration_sec, completed, updated_at
+		 )
+		 SELECT saved.*, saved.completed AND NOT COALESCE((SELECT completed FROM prev), false) FROM saved`,
 		userID, episodeID, showID, positionSec, durationSec, completed, occurredAt).
-		Scan(&p.EpisodeID, &p.ShowID, &p.PositionSec, &p.DurationSec, &p.Completed, &p.UpdatedAt)
-	return p, err
+		Scan(&p.EpisodeID, &p.ShowID, &p.PositionSec, &p.DurationSec, &p.Completed, &p.UpdatedAt, &justCompleted)
+	return p, justCompleted, err
 }
 
 func (s *Store) Progress(ctx context.Context, userID, episodeID string) (Progress, error) {

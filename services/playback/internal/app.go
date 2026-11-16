@@ -268,21 +268,24 @@ func (a *App) postProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	prog, err := a.Store.SaveProgress(ctx, tx, id.UserID, req.EpisodeID, showID,
+	prog, justCompleted, err := a.Store.SaveProgress(ctx, tx, id.UserID, req.EpisodeID, showID,
 		req.PositionSec, durationSec, req.Completed, occurredAt)
 	if err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not save progress"))
 		return
 	}
 
+	// The stored completed flag is sticky, so only the save that flips it
+	// counts as a completion. Otherwise every later save after finishing an
+	// episode credited analytics with another completion and full duration.
 	eventType := "playback.progress"
-	if prog.Completed {
+	if justCompleted {
 		eventType = "playback.completed"
 	}
 	if err := a.enqueue(ctx, tx, eventType, id.UserID, map[string]any{
 		"user_id": id.UserID, "episode_id": req.EpisodeID, "show_id": prog.ShowID,
 		"position_sec": prog.PositionSec, "duration_sec": prog.DurationSec,
-		"completed": prog.Completed, "session_id": req.SessionID, "occurred_at": occurredAt,
+		"completed": justCompleted, "session_id": req.SessionID, "occurred_at": occurredAt,
 	}); err != nil {
 		httpx.Error(w, r, errcodes.Unexpected("could not record playback event"))
 		return
@@ -375,18 +378,24 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		occurredAt := parseTime(ev.OccurredAt)
+		eventType, justCompleted := domainEventType(ev.Type), false
 		if ev.Type == "PROGRESS" || ev.Type == "COMPLETE" {
-			if _, err := a.Store.SaveProgress(ctx, tx, id.UserID, ev.EpisodeID, showID,
+			var err error
+			if _, justCompleted, err = a.Store.SaveProgress(ctx, tx, id.UserID, ev.EpisodeID, showID,
 				ev.PositionSec, durationSec, ev.Type == "COMPLETE", occurredAt); err != nil {
 				_ = tx.Rollback(ctx)
 				httpx.Error(w, r, errcodes.Unexpected("could not save progress"))
 				return
 			}
+			// A repeat COMPLETE for an episode already finished is just progress.
+			if ev.Type == "COMPLETE" && !justCompleted {
+				eventType = "playback.progress"
+			}
 		}
 		payload := map[string]any{
 			"user_id": id.UserID, "episode_id": ev.EpisodeID, "show_id": showID,
 			"event_type": ev.Type, "position_sec": ev.PositionSec, "duration_sec": durationSec,
-			"completed": ev.Type == "COMPLETE", "session_id": ev.SessionID,
+			"completed": justCompleted, "session_id": ev.SessionID,
 			"occurred_at": occurredAt,
 		}
 		if ev.FromSec != nil {
@@ -395,7 +404,7 @@ func (a *App) postEvents(w http.ResponseWriter, r *http.Request) {
 		if ev.ToSec != nil {
 			payload["to_sec"] = *ev.ToSec
 		}
-		if err := a.enqueue(ctx, tx, domainEventType(ev.Type), id.UserID, payload); err != nil {
+		if err := a.enqueue(ctx, tx, eventType, id.UserID, payload); err != nil {
 			_ = tx.Rollback(ctx)
 			httpx.Error(w, r, errcodes.Unexpected("could not record events"))
 			return
