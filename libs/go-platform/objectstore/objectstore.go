@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/auralis/platform/health"
@@ -54,10 +56,16 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return &Client{mc: mc, bucket: cfg.Bucket, public: cfg.PublicBaseURL}, nil
 }
 
-// PresignPut returns a URL the client can PUT an object to directly. The caller
-// validates the object with Stat after the client reports completion.
-func (c *Client) PresignPut(ctx context.Context, key string, ttl time.Duration) (string, error) {
-	u, err := c.mc.PresignedPutObject(ctx, c.bucket, key, ttl)
+// PresignPut returns a URL the client can PUT an object to directly. The
+// content type and exact size are signed into the URL, so a client can't
+// use it to store something larger or of another type than it asked for.
+// The caller still checks the object with Stat after the client reports
+// completion, in case a store doesn't enforce signed headers.
+func (c *Client) PresignPut(ctx context.Context, key string, ttl time.Duration, contentType string, size int64) (string, error) {
+	h := http.Header{}
+	h.Set("Content-Type", contentType)
+	h.Set("Content-Length", strconv.FormatInt(size, 10))
+	u, err := c.mc.PresignHeader(ctx, http.MethodPut, c.bucket, key, ttl, nil, h)
 	if err != nil {
 		return "", err
 	}

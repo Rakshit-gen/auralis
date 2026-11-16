@@ -51,7 +51,7 @@ func (a *App) createUploadURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := fmt.Sprintf("source/%s/%s/%s.%s", e.ShowID, e.ID, uuid.NewString(), ext)
-	url, err := a.Objects.PresignPut(r.Context(), key, a.UploadTTL)
+	url, err := a.Objects.PresignPut(r.Context(), key, a.UploadTTL, req.ContentType, req.SizeBytes)
 	if err != nil {
 		httpx.Error(w, r, errcodes.New(http.StatusBadGateway, errcodes.Unavailable, "object storage unavailable"))
 		return
@@ -63,7 +63,9 @@ func (a *App) createUploadURL(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"upload_id": uploadID, "url": url, "method": "PUT", "object_key": key,
-		"headers":    map[string]string{"Content-Type": req.ContentType},
+		"headers": map[string]string{
+			"Content-Type": req.ContentType, "Content-Length": fmt.Sprint(req.SizeBytes),
+		},
 		"expires_at": time.Now().Add(a.UploadTTL).UTC(),
 	})
 }
